@@ -1,0 +1,78 @@
+refresh_vehicle:
+  name: Fahrzeugdaten aktualisieren
+  description: Erzwingt eine sofortige Datenaktualisierung vom Server für alle Fahrzeuge dieses Kontos.
+  fields: {}
+
+lock:
+  name: Fahrzeug verriegeln
+  description: Verriegelt die Türen des angegebenen Fahrzeugs.
+  fields:
+    vin:
+      name: Fahrzeugidentifikationsnummer (VIN)
+      description: Die VIN des Fahrzeugs.
+      required: true
+      example: "WAUZZZ4G7EN123456"
+      selector:
+        text:
+
+unlock:
+  name: Fahrzeug entriegeln
+  description: Entriegelt die Türen des angegebenen Fahrzeugs. S-PIN erforderlich.
+  fields:
+    vin:
+      name: Fahrzeugidentifikationsnummer (VIN)
+      description: Die VIN des Fahrzeugs.
+      required: true
+      example: "WAUZZZ4G7EN123456"
+      selector:
+        text:
+
+start_climatisation:
+  name: Klimatisierung starten
+  description: Startet die Vorklimatisierung des Fahrzeugs.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+
+stop_climatisation:
+  name: Klimatisierung stoppen
+  description: Stoppt die Klimatisierung des Fahrzeugs.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+
+start_charging:
+  name: Laden starten
+  description: Startet den Ladevorgang (nur Elektrofahrzeuge).
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+
+stop_charging:
+  name: Laden stoppen
+  description: Stoppt den Ladevorgang.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+
+flash_lights:
+  name: Lichtsignal
+  description: Aktiviert Lichthupe und Lichtsignal (Honk & Flash).
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:

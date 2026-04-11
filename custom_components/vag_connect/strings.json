@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "VAG Connect einrichten",
+        "description": "Verbinde dein Fahrzeug mit Home Assistant.",
+        "data": {
+          "brand": "Fahrzeugmarke",
+          "username": "E-Mail-Adresse",
+          "password": "Passwort",
+          "spin": "S-PIN (optional)",
+          "scan_interval": "Aktualisierungsintervall (Minuten)"
+        },
+        "data_description": {
+          "spin": "Wird für Aktionen wie Türverriegelung benötigt.",
+          "scan_interval": "Mindestens 5 Minuten. Empfohlen: 15 Minuten."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen. Zugangsdaten prüfen.",
+      "missing_library": "CarConnectivity-Bibliothek fehlt. HA neu starten.",
+      "unknown": "Unbekannter Fehler."
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "VAG Connect Einstellungen",
+        "data": {
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "spin": "S-PIN"
+        }
+      }
+    }
+  }
+}

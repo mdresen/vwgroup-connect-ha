@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Nastavit VAG Connect",
+        "data": {
+          "brand": "Značka vozidla",
+          "username": "E-mailová adresa",
+          "password": "Heslo",
+          "spin": "S-PIN (volitelné)",
+          "scan_interval": "Interval aktualizace (minuty)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Připojení selhalo. Zkontrolujte přihlašovací údaje.",
+      "missing_library": "Chybí knihovna CarConnectivity.",
+      "unknown": "Neznámá chyba."
+    },
+    "abort": {
+      "already_configured": "Tento účet je již nastaven."
+    }
+  }
+}

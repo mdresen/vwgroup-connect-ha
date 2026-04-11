@@ -1,0 +1,39 @@
+name: ✨ Feature Request
+description: Neue Funktion oder Verbesserung vorschlagen
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: brand
+    attributes:
+      label: Betrifft welche Marke(n)?
+      multiple: true
+      options:
+        - Alle
+        - Audi
+        - Volkswagen (EU)
+        - Volkswagen (US/CA)
+        - Škoda
+        - SEAT / CUPRA
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Was soll die neue Funktion tun?
+    validations:
+      required: true
+
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Warum ist das nützlich?
+      description: Welche Automation / welchen Use Case ermöglicht das?
+    validations:
+      required: true
+
+  - type: textarea
+    id: api_info
+    attributes:
+      label: Gibt es bereits API-Informationen dazu?
+      description: Links zu ioBroker-Forum, CarConnectivity Issues, etc. sehr willkommen!

@@ -1,0 +1,89 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up VAG Connect",
+        "description": "Connect your vehicle to Home Assistant. Choose your brand and enter your app credentials.",
+        "data": {
+          "brand": "Vehicle Brand",
+          "username": "Email Address",
+          "password": "Password",
+          "spin": "S-PIN (optional, required for locking)",
+          "scan_interval": "Update Interval (minutes)"
+        },
+        "data_description": {
+          "spin": "Required for actions like door locking. Can be left empty.",
+          "scan_interval": "Minimum 5 minutes — too frequent polling may cause account suspension."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Connection failed. Please check your credentials.",
+      "missing_library": "CarConnectivity library not found. Please restart Home Assistant.",
+      "unknown": "Unknown error."
+    },
+    "abort": {
+      "already_configured": "This account is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "VAG Connect Options",
+        "data": {
+          "scan_interval": "Update Interval (minutes)",
+          "spin": "S-PIN"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "fuel_level":          { "name": "Fuel Level" },
+      "battery_soc":         { "name": "Battery State of Charge" },
+      "range_km":            { "name": "Range" },
+      "odometer_km":         { "name": "Odometer" },
+      "charging_state":      { "name": "Charging State" },
+      "plug_state":          { "name": "Plug State" },
+      "target_soc":          { "name": "Charge Target" },
+      "climatisation_state": { "name": "Climatisation" },
+      "outside_temp":        { "name": "Outside Temperature" },
+      "oil_level":           { "name": "Oil Level" },
+      "service_days":        { "name": "Service Due (Days)" },
+      "service_km":          { "name": "Service Due (km)" }
+    },
+    "binary_sensor": {
+      "doors_locked":   { "name": "Doors Locked" },
+      "doors_open":     { "name": "Doors Open" },
+      "windows_open":   { "name": "Windows Open" },
+      "plug_connected": { "name": "Charging Cable Connected" },
+      "is_charging":    { "name": "Charging" }
+    },
+    "switch": {
+      "lock_switch":           { "name": "Door Lock" },
+      "climatisation_switch":  { "name": "Climatisation" },
+      "charging_switch":       { "name": "Charging" }
+    },
+    "button": {
+      "flash_button":   { "name": "Flash Lights" },
+      "refresh_button": { "name": "Refresh Data" }
+    },
+    "climate": {
+      "climate": { "name": "Pre-Conditioning" }
+    },
+    "device_tracker": {
+      "position": { "name": "Position" }
+    }
+  },
+  "selector": {
+    "brand": {
+      "options": {
+        "audi":          "Audi (myAudi)",
+        "volkswagen":    "Volkswagen / VW (WeConnect EU)",
+        "volkswagen_na": "Volkswagen / VW (WeConnect US/CA)",
+        "skoda":         "Škoda (MySkoda)",
+        "seatcupra":     "SEAT / CUPRA (MyCupra)"
+      }
+    }
+  }
+}

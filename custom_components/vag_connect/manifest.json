@@ -1,0 +1,19 @@
+{
+  "domain": "vag_connect",
+  "name": "VAG Connect",
+  "version": "0.1.0",
+  "documentation": "https://github.com/prash1407/vag-connect-ha",
+  "issue_tracker": "https://github.com/prash1407/vag-connect-ha/issues",
+  "requirements": [
+    "carconnectivity>=0.11.8",
+    "carconnectivity-connector-audi>=0.1.0",
+    "carconnectivity-connector-volkswagen>=0.10.3",
+    "carconnectivity-connector-skoda>=0.1.0",
+    "carconnectivity-connector-seatcupra>=0.4.6"
+  ],
+  "dependencies": [],
+  "codeowners": ["@prash1407"],
+  "iot_class": "cloud_polling",
+  "config_flow": true,
+  "integration_type": "hub"
+}

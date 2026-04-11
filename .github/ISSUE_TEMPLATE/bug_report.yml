@@ -1,0 +1,81 @@
+name: 🐛 Bug Report
+description: Etwas funktioniert nicht wie erwartet
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für deinen Bug-Report! Bitte fülle alle Felder aus — das hilft uns enorm.
+
+  - type: dropdown
+    id: brand
+    attributes:
+      label: Fahrzeugmarke
+      options:
+        - Audi
+        - Volkswagen (EU)
+        - Volkswagen (US/CA)
+        - Škoda
+        - SEAT / CUPRA
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Fahrzeugmodell
+      placeholder: "z.B. Audi Q4 e-tron 2023"
+    validations:
+      required: true
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant Version
+      placeholder: "z.B. 2024.12.0"
+    validations:
+      required: true
+
+  - type: input
+    id: integration_version
+    attributes:
+      label: VAG Connect Version
+      placeholder: "z.B. 0.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Was passiert?
+      description: Beschreibe das Problem so genau wie möglich.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Was sollte passieren?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional aber sehr hilfreich)
+      description: |
+        Aktiviere Debug-Logging in configuration.yaml:
+        ```yaml
+        logger:
+          logs:
+            custom_components.vag_connect: debug
+        ```
+      render: text
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Einstellungen → Geräte & Dienste → VAG Connect → ⋮ → Diagnose herunterladen
+      render: json

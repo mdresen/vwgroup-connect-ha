@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfigurera VAG Connect",
+        "data": {
+          "brand": "Fordonsvarumärke",
+          "username": "E-postadress",
+          "password": "Lösenord",
+          "spin": "S-PIN (valfritt)",
+          "scan_interval": "Uppdateringsintervall (minuter)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Anslutning misslyckades. Kontrollera dina uppgifter.",
+      "missing_library": "CarConnectivity-bibliotek saknas.",
+      "unknown": "Okänt fel."
+    },
+    "abort": {
+      "already_configured": "Det här kontot är redan konfigurerat."
+    }
+  }
+}

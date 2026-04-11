@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurar VAG Connect",
+        "data": {
+          "brand": "Marca del vehículo",
+          "username": "Correo electrónico",
+          "password": "Contraseña",
+          "spin": "S-PIN (opcional)",
+          "scan_interval": "Intervalo de actualización (minutos)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Conexión fallida. Compruebe sus credenciales.",
+      "missing_library": "Biblioteca CarConnectivity no encontrada.",
+      "unknown": "Error desconocido."
+    },
+    "abort": {
+      "already_configured": "Esta cuenta ya está configurada."
+    }
+  }
+}

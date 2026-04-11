@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "VAG Connect instellen",
+        "data": {
+          "brand": "Voertuigmerk",
+          "username": "E-mailadres",
+          "password": "Wachtwoord",
+          "spin": "S-PIN (optioneel)",
+          "scan_interval": "Verversingsinterval (minuten)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbinding mislukt. Controleer uw gegevens.",
+      "missing_library": "CarConnectivity bibliotheek niet gevonden.",
+      "unknown": "Onbekende fout."
+    },
+    "abort": {
+      "already_configured": "Dit account is al geconfigureerd."
+    }
+  }
+}
