@@ -50,6 +50,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.6.1] — 2026-05-31 — "Audi token-headers hotfix (stable)"
+
+- Audi email + password login: dropped the dummy `x-assertion` / `x-platform` / `x-android-package-name` trio from token requests. VW's backend started rejecting the dummy `x-assertion="0"` value some time around 2026-05-27 and now accepts requests that omit the three headers entirely. This brings the Audi path back in line with the official myAudi app's request shape.
+- Fixes "Token exchange failed HTTP 502" reports on Audi (issue #319) for users who don't want to switch to the new v2.7.0 Browser-Login flow yet.
+- No behaviour change for VW EU, Škoda, SEAT, CUPRA, Porsche or VW US/CA.
+
 ## [2.6.0] — 2026-05-31 — "Multi-Strategy Auth (Hybrid + DAG + Data Act)"
 
 - VW EU now logs in via OIDC hybrid flow (response_type=code id_token token) — bypasses Play Integrity wall.
