@@ -60,7 +60,31 @@ jobs:
           apktool --version || true
           rg --version | head -1 || true
 
+      - name: Install apkeep (Google Play source for Phase A.2)
+        run: |
+          # apkeep (EFF) downloads the real Play Store APK directly — the
+          # authoritative source, and the only one that covers brands no
+          # mirror serves (e.g. Škoda). Pinned for reproducibility. On
+          # failure, build_atlas falls back to APKCombo → Uptodown, so the
+          # workflow still completes.
+          APKEEP_VER="1.0.0"
+          sudo curl -fsSL -o /usr/local/bin/apkeep \
+            "https://github.com/EFForg/apkeep/releases/download/${APKEEP_VER}/apkeep-x86_64-unknown-linux-gnu" \
+            && sudo chmod +x /usr/local/bin/apkeep \
+            && apkeep --version \
+            || echo "::warning::apkeep install failed — Phase A.2 falls back to the mirror chain"
+
       - name: Run atlas builder (Phase A.1 polling + A.2 APK extraction)
+        # Optional Google Play credentials for apkeep. If unset, the
+        # extractor falls back to the anonymous Aurora dispenser (turnkey
+        # but rate-limited — may be blocked from GitHub Actions IPs, in
+        # which case it falls back again to APKCombo → Uptodown). For
+        # reliable CI, add a throwaway account's long-lived aas_token as
+        # repo secrets APKEEP_EMAIL + APKEEP_AAS_TOKEN.
+        env:
+          APKEEP_EMAIL: ${{ secrets.APKEEP_EMAIL }}
+          APKEEP_AAS_TOKEN: ${{ secrets.APKEEP_AAS_TOKEN }}
+          APKEEP_AUTH_TOKEN: ${{ secrets.APKEEP_AUTH_TOKEN }}
         # APK extraction only fires when a brand's version-name changed
         # since last cache — so most days this stays under 1 minute.
         # When triggered via workflow_dispatch with force_extract=true,

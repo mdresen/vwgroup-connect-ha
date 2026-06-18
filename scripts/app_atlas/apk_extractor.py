@@ -29,7 +29,9 @@ consecutive versions; that lives in a separate module.
 from __future__ import annotations
 
 import datetime
+import json
 import logging
+import os
 import re
 import subprocess
 import urllib.error
@@ -169,6 +171,130 @@ def download_to(url: str, dest: Path) -> bool:
     except Exception as exc:  # noqa: BLE001
         _LOGGER.error("Download failed (%s): %s", url[:80], exc)
         return False
+
+
+# ── Primary source: Google Play via apkeep ─────────────────────────
+# v Phase A.2.1 (2026-06-18): apkeep (EFF) downloads the *real* Play
+# Store APK directly. It's more authoritative than the mirror chain and
+# the only source that covers brands no mirror serves (notably Škoda).
+# Auth is agnostic: an explicit aas_token (long-lived, ideal for CI) or
+# auth_token via env, else an anonymous token from the Aurora Store
+# dispenser (turnkey but short-lived ~1h + rate-limited). Every failure
+# path returns None so callers fall back to APKCombo → Uptodown — apkeep
+# is strictly additive, never a regression.
+
+# Default Aurora dispenser; override via APKEEP_DISPENSER_URL.
+_APKEEP_DISPENSER_URL = os.environ.get(
+    "APKEEP_DISPENSER_URL", "https://auroraoss.com/api/auth"
+)
+# Memoize anonymous creds so a multi-brand run hits the rate-limited
+# dispenser exactly once (not once per brand). None = not yet fetched;
+# False = tried and failed this run (don't retry per brand).
+_ANON_CREDS: tuple[str, str] | None | bool = None
+
+
+def _apkeep_bin() -> str | None:
+    """Locate the apkeep binary (APKEEP_BIN override, else PATH)."""
+    import shutil
+    return os.environ.get("APKEEP_BIN") or shutil.which("apkeep")
+
+
+def _fetch_anon_play_creds() -> tuple[str, str] | None:
+    """Fetch an anonymous (email, auth_token) pair from the Aurora Store
+    token dispenser. Memoized per process run.
+
+    These ``ya29.*`` tokens are short-lived (~1h) and the dispenser is
+    rate-limited / may block runner IPs — a None return means the caller
+    should fall back to the mirror chain.
+    """
+    global _ANON_CREDS
+    if _ANON_CREDS is not None:
+        return _ANON_CREDS or None
+    try:
+        req = urllib.request.Request(
+            _APKEEP_DISPENSER_URL, headers={"User-Agent": "com.aurora.store"}
+        )
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        email, auth = data.get("email"), data.get("auth")
+        if email and auth:
+            _ANON_CREDS = (email, auth)
+            _LOGGER.info("Aurora dispenser: obtained anonymous Play credentials")
+            return _ANON_CREDS
+        _LOGGER.warning("Aurora dispenser returned no email/auth pair")
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.warning("Aurora dispenser unavailable: %s", exc)
+    _ANON_CREDS = False
+    return None
+
+
+def download_via_apkeep(package_id: str, dest_dir: Path) -> Path | None:
+    """Download ``package_id`` from Google Play via apkeep.
+
+    Returns the path to the downloaded base APK, or None if apkeep is
+    unavailable / unconfigured / the download failed (region-lock,
+    rate-limit, etc.) — caller then falls back to the mirror chain.
+
+    Credential precedence (first set wins):
+      1. APKEEP_EMAIL + APKEEP_AAS_TOKEN   → ``-t``          (long-lived; best for CI)
+      2. APKEEP_EMAIL + APKEEP_AUTH_TOKEN  → ``--auth-token``
+      3. anonymous Aurora dispenser        → ``--auth-token`` (short-lived)
+    Set APKEEP_DISABLE=1 to skip the Google Play source entirely.
+    """
+    if os.environ.get("APKEEP_DISABLE"):
+        return None
+    bin_ = _apkeep_bin()
+    if not bin_:
+        _LOGGER.info("apkeep not found (set APKEEP_BIN or add to PATH) — "
+                     "skipping Google Play source for %s", package_id)
+        return None
+
+    email = os.environ.get("APKEEP_EMAIL")
+    aas = os.environ.get("APKEEP_AAS_TOKEN")
+    auth = os.environ.get("APKEEP_AUTH_TOKEN")
+    if email and aas:
+        cred_args = ["-e", email, "-t", aas]
+    elif email and auth:
+        cred_args = ["-e", email, "--auth-token", auth, "--accept-tos"]
+    else:
+        anon = _fetch_anon_play_creds()
+        if not anon:
+            _LOGGER.warning("No Play credentials + dispenser unavailable — "
+                            "skipping Google Play source for %s", package_id)
+            return None
+        cred_args = ["-e", anon[0], "--auth-token", anon[1], "--accept-tos"]
+
+    out_dir = dest_dir / "apkeep_out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Full APK only (no split_apk): the extractor needs just the base
+    # APK, and apkeep's split path is the one that overflows the stack on
+    # the Windows build (see scripts/app_atlas/README — PE-stack note).
+    cmd = [bin_, "-a", package_id, "-d", "google-play", *cred_args, str(out_dir)]
+    try:
+        result = subprocess.run(
+            cmd, check=False, capture_output=True, text=True,
+            timeout=_DOWNLOAD_TIMEOUT,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        _LOGGER.warning("apkeep run failed for %s: %s", package_id, exc)
+        return None
+    if result.returncode != 0:
+        # stderr/stdout never echo the token (it lives only in argv), so
+        # this tail is safe to log per pb-datenschutz.
+        tail = (result.stderr or result.stdout or "").strip()[-300:]
+        _LOGGER.warning("apkeep rc=%d for %s: %s", result.returncode, package_id, tail)
+        return None
+
+    # apkeep writes <package>.apk into out_dir. Prefer the exact name,
+    # else the largest .apk found (defensive — covers any future layout).
+    exact = out_dir / f"{package_id}.apk"
+    if exact.exists():
+        return exact
+    apks = sorted(out_dir.rglob("*.apk"), key=lambda p: p.stat().st_size, reverse=True)
+    if apks:
+        return apks[0]
+    _LOGGER.warning("apkeep reported success but produced no .apk for %s", package_id)
+    return None
 
 
 def unpack_xapk(xapk_path: Path, dest_dir: Path) -> Path | None:
@@ -409,31 +535,50 @@ def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
     the findings dict is retained.
     """
     sources = brand_cfg.get("sources", {})
+    package_id = brand_cfg.get("package_id")
     apkcombo_slug = sources.get("apkcombo_slug")
     uptodown_sub = sources.get("uptodown_subdomain")
-    if not apkcombo_slug and not uptodown_sub:
-        _LOGGER.warning("Brand %s: no apkcombo_slug or uptodown_subdomain — "
-                       "skipping APK extraction", brand)
-        return None
 
-    # 1. Resolve download URL — APKCombo first (XAPK, fast CDN), then fall
-    #    back to Uptodown for brands APKCombo doesn't serve (e.g. Škoda).
-    download_url = None
-    if apkcombo_slug:
-        download_url = resolve_apkcombo_download(apkcombo_slug)
-    if not download_url and uptodown_sub:
-        _LOGGER.info("Brand %s: APKCombo unavailable — trying Uptodown", brand)
-        download_url = resolve_uptodown_download(uptodown_sub)
-    if not download_url:
-        _LOGGER.warning("Brand %s: no download URL via APKCombo or Uptodown", brand)
-        return None
-    _LOGGER.info("Brand %s: APK download URL resolved", brand)
+    # 1–2. Acquire an APK/XAPK file. Source priority:
+    #    (a) Google Play via apkeep — authoritative; covers brands no
+    #        mirror serves (e.g. Škoda). Skips gracefully when apkeep is
+    #        unavailable/unconfigured/region-locked.
+    #    (b) APKCombo (XAPK, fast CDN).
+    #    (c) Uptodown (broadest mirror coverage).
+    apk_path: Path | None = None
+    source_label: str | None = None
 
-    # 2. Download.
-    apk_path = tmp_dir / f"{brand}.xapk"
-    if not download_to(download_url, apk_path):
-        return None
-    _LOGGER.info("Brand %s: downloaded %d bytes", brand, apk_path.stat().st_size)
+    if package_id:
+        apk_path = download_via_apkeep(package_id, tmp_dir)
+        if apk_path:
+            source_label = "google-play (apkeep)"
+
+    if apk_path is None:
+        if not apkcombo_slug and not uptodown_sub:
+            _LOGGER.warning("Brand %s: Google Play unavailable and no "
+                            "apkcombo_slug/uptodown_subdomain configured — "
+                            "skipping APK extraction", brand)
+            return None
+        download_url = None
+        if apkcombo_slug:
+            download_url = resolve_apkcombo_download(apkcombo_slug)
+            if download_url:
+                source_label = "apkcombo"
+        if not download_url and uptodown_sub:
+            _LOGGER.info("Brand %s: APKCombo unavailable — trying Uptodown", brand)
+            download_url = resolve_uptodown_download(uptodown_sub)
+            if download_url:
+                source_label = "uptodown"
+        if not download_url:
+            _LOGGER.warning("Brand %s: no source succeeded (apkeep + APKCombo "
+                            "+ Uptodown all failed)", brand)
+            return None
+        apk_path = tmp_dir / f"{brand}.xapk"
+        if not download_to(download_url, apk_path):
+            return None
+
+    _LOGGER.info("Brand %s: APK acquired via %s (%d bytes)", brand,
+                 source_label, apk_path.stat().st_size)
 
     # 3. Unpack XAPK (or copy if it's already a plain APK).
     unpack_dir = tmp_dir / f"{brand}_unpacked"
@@ -466,6 +611,7 @@ def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
         tz=datetime.timezone.utc
     ).isoformat()
     findings["xapk_size_bytes"] = apk_path.stat().st_size
+    findings["source"] = source_label
 
     # 6. Cleanup transient files.
     import shutil

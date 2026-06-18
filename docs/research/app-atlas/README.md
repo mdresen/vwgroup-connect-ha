@@ -31,7 +31,7 @@ gap by walking all 7 brand apps daily and tracking what they do.
 | Phase | What | Status |
 |---|---|---|
 | **A.1** | Version-polling for all 7 brands (APKMirror → Uptodown → APKCombo fallback chain) | ✅ Live (daily) |
-| **A.2** | APK download + apktool decode + grep for header keys / endpoint hosts | ✅ Live (daily, on version-change) |
+| **A.2** | APK download (Google Play via apkeep → APKCombo → Uptodown) + apktool decode + grep for header keys / endpoint hosts | ✅ Live (daily, on version-change) |
 | **A.3** | jadx full decompile + cross-version semantic diff | ✅ Live (manual `workflow_dispatch`) |
 | **B** | Act on discoveries — separate per-PR | 🟡 Rolling |
 
