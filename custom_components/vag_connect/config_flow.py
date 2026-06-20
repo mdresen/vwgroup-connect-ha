@@ -272,6 +272,13 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._dag_user_id: str = ""
         # Captured if either phase fails.
         self._dag_error: str = ""
+        # v2.15.0 — durable MBB strategy flag. When True the DAG flow uses the
+        # e-Remote client + ``mbb`` scope and, after the browser confirm, mints
+        # a durable MBB bearer via register/v1 + token-exchange. Default False
+        # → the standard browser-login flow is completely unaffected.
+        self._dag_mbb: bool = False
+        self._dag_mbb_tokens: Any = None
+        self._dag_mbb_client_id: str = ""
         # v2.14.0 — website-authproxy (opt-in beta) pending state between the
         # credentials step and the email-OTP step. The connector + its session
         # are held open across the two-step OTP exchange so the cookie jar
@@ -322,6 +329,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 "website_authproxy": (
                     "Volkswagen.de website (beta) — nur Volkswagen, "
                     "nur Lesen"
+                ),
+                # v2.15.0 — OPT-IN, ALPHA. Volkswagen EU durable login via the
+                # legacy MBB stack: a browser confirm (no password in HA) mints
+                # a durable, refreshable token that survives restarts AND
+                # supports two-way lock/unlock (needs the S-PIN in options).
+                "mbb_login": (
+                    "Volkswagen EU — Durable Login (MBB, two-way alpha) — "
+                    "Browser-Login, überlebt Neustart"
                 ),
             },
         )
@@ -608,6 +623,51 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             ),
         }
 
+    async def async_step_mbb_login(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.15.0 — Volkswagen EU durable MBB login (alpha) step 1.
+
+        VW-pinned variant of the browser-login flow: no brand picker (the
+        MBB recipe is VW-only), but it surfaces the S-PIN field so two-way
+        lock/unlock works. Submits → reuse the exact same DAG QR/poll
+        machinery (with the MBB client + scope, set via ``self._dag_mbb``).
+        """
+        if user_input is not None:
+            # Reset DAG state for this MBB attempt.
+            self._dag_mbb = True
+            self._dag_brand = "volkswagen"
+            self._dag_user_input = dict(user_input)
+            self._dag_request_task = None
+            self._dag_poll_task = None
+            self._dag_user_code = ""
+            self._dag_verification_uri = ""
+            self._dag_device_code = ""
+            self._dag_tokens = None
+            self._dag_mbb_tokens = None
+            self._dag_mbb_client_id = ""
+            self._dag_user_id = ""
+            self._dag_error = ""
+            return await self.async_step_browser_login_pending()
+
+        suggested: dict[str, Any] = user_input or {}
+        return self.async_show_form(
+            step_id="mbb_login",
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_SPIN, default=suggested.get(CONF_SPIN, ""),
+                ): _SPIN_SELECTOR,
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
+                ): _INTERVAL_SELECTOR,
+                vol.Optional(
+                    CONF_FORCE_ACCESS,
+                    default=bool(suggested.get(CONF_FORCE_ACCESS, False)),
+                ): _BOOL_SELECTOR,
+            }),
+        )
+
     async def async_step_browser_login(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
@@ -629,6 +689,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 errors["base"] = "brand_not_dag_eligible"
             else:
                 # Reset state for this attempt.
+                self._dag_mbb = False
                 self._dag_brand = brand
                 self._dag_user_input = dict(user_input)
                 self._dag_request_task = None
@@ -717,7 +778,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # Phase 1 failed — drop back to the brand picker so user
             # can retry. The error message lives in self._dag_error
             # (surfaced via debug log; future: repair-issue / notification).
-            return self.async_show_progress_done(next_step_id="browser_login")
+            return self.async_show_progress_done(
+                next_step_id="mbb_login" if self._dag_mbb else "browser_login"
+            )
 
         # Phase 1 done — hand off to Phase 2 (separate step_id so HA
         # re-renders the progress dialog with the populated placeholders).
@@ -790,12 +853,20 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # User clicked "I've approved" — check poll state
             if self._dag_poll_task.done():
                 self._dismiss_dag_persistent_notification()
-                if self._dag_tokens:
+                # v2.15.0 — for the MBB flow, success also requires the
+                # durable bearer to have been minted (register + exchange);
+                # a poll-OK but mint-failed attempt must route back to retry.
+                minted_ok = self._dag_tokens and (
+                    not self._dag_mbb or self._dag_mbb_tokens is not None
+                )
+                if minted_ok:
                     return await self.async_step_browser_login_finish()
-                # Poll completed with error — reset state and route
-                # back to brand picker so user can retry.
+                # Poll/mint completed with error — reset state and route
+                # back to the right brand/MBB picker so user can retry.
                 self._dag_poll_task = None
                 self._dag_device_code = ""
+                if self._dag_mbb:
+                    return await self.async_step_mbb_login()
                 return await self.async_step_browser_login()
             # Clicked submit before poll completed — re-render with hint
             errors["base"] = "still_waiting_browser"
@@ -920,14 +991,34 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 connector=connector,
                 cookie_jar=aiohttp.CookieJar(unsafe=True),
             )
-            from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+            # v2.15.0 — durable MBB login uses the e-Remote client + ``mbb``
+            # scope (NOT the DAG-dead VW app client), tagged strategy="mbb".
+            if self._dag_mbb:
+                from .cariad.auth._device_grant import (  # noqa: PLC0415
+                    mbb_dag_config,
+                )
 
-            brand_cfg = BRAND_CONFIGS[self._dag_brand]
-            self._dag_client = DeviceAuthorizationGrant(
-                self._dag_session,
-                brand_cfg.client_id,
-                scope=brand_cfg.scope,
-            )
+                mbb_cfg = mbb_dag_config(self._dag_brand)
+                if mbb_cfg is None:
+                    raise ValueError(
+                        f"MBB durable login is VW-only (got {self._dag_brand})"
+                    )
+                mbb_client_id, mbb_scope = mbb_cfg
+                self._dag_client = DeviceAuthorizationGrant(
+                    self._dag_session,
+                    mbb_client_id,
+                    scope=mbb_scope,
+                    strategy="mbb",
+                )
+            else:
+                from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+
+                brand_cfg = BRAND_CONFIGS[self._dag_brand]
+                self._dag_client = DeviceAuthorizationGrant(
+                    self._dag_session,
+                    brand_cfg.client_id,
+                    scope=brand_cfg.scope,
+                )
             code = await self._dag_client.request_device_code()
             self._dag_device_code = code.device_code
             self._dag_user_code = code.user_code
@@ -971,6 +1062,22 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 _CONST_BRANDS.get(self._dag_brand, self._dag_brand),
                 self._dag_user_id[:8] if self._dag_user_id else "(none)",
             )
+            # v2.15.0 — durable MBB: exchange the freshly-minted ``mbb``-scoped
+            # id_token for the durable MBB bearer via register/v1 + token
+            # exchange. Runs HERE (Phase 2) so it reuses the still-open DAG
+            # session before the finally-block closes it.
+            if self._dag_mbb:
+                from .cariad.auth import _mbboauth  # noqa: PLC0415
+
+                mbb_tokens, mbb_client_id = await _mbboauth.mint_mbb_bearer(
+                    self._dag_session, self._dag_tokens.id_token,
+                )
+                self._dag_mbb_tokens = mbb_tokens
+                self._dag_mbb_client_id = mbb_client_id
+                _LOGGER.info(
+                    "MBB durable bearer minted (refresh_token present: %s)",
+                    bool(mbb_tokens.refresh_token),
+                )
         except Exception as err:  # noqa: BLE001 — flow-level catch
             self._dag_error = str(err)
             _LOGGER.warning(
@@ -1011,6 +1118,26 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             "",  # no password stored
             self._dag_user_input,
         )
+        # v2.15.0 — durable MBB entry: persist the MBB bearer + refresh
+        # (strategy="mbb") plus the registered X-Client-Id that minted it
+        # (needed by every MBB refresh + read + command). Keep the OIDC
+        # id_token too — its ``sub`` becomes the X-MbbUserId header.
+        if self._dag_mbb:
+            if self._dag_mbb_tokens is None:
+                return self.async_abort(reason="dag_no_tokens")
+            entry_data["dag_initial_tokens"] = {
+                "access_token": self._dag_mbb_tokens.access_token,
+                "refresh_token": self._dag_mbb_tokens.refresh_token,
+                "id_token": self._dag_tokens.id_token,
+                "expires_at": self._dag_mbb_tokens.expires_at,
+                "strategy": "mbb",
+            }
+            entry_data["mbb_client_id"] = self._dag_mbb_client_id
+            return self.async_create_entry(
+                title=f"Volkswagen EU (MBB) — {self._dag_user_id[:8]}…",
+                data=entry_data,
+            )
+
         # Stash the DAG-acquired tokens so the coordinator's token
         # persistence loader picks them up before the first poll cycle.
         entry_data["dag_initial_tokens"] = {

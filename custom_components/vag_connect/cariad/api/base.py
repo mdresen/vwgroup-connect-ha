@@ -140,6 +140,13 @@ class CariadBaseClient:
         # already-authenticated session resumes WITHOUT re-prompting the OTP.
         # None / empty = no persisted session → normal (OTP-prompting) login.
         self._website_cookies: list[dict[str, Any]] | None = None
+        # v2.15.0 — durable MBB strategy. When the entry was created via the
+        # MBB device-grant login, the registered ``X-Client-Id`` that minted
+        # the durable bearer is threaded here by the coordinator. The MBB
+        # bearer IS ``self._tokens.access_token``; this client id must ride on
+        # every MBB token refresh + VSR read + RLU command (a mismatch 403s).
+        # Empty for every non-MBB entry → no behaviour change.
+        self._mbb_client_id: str = ""
         self._image_data: dict[str, VehicleImageData] = {}
         self._refresh_lock: asyncio.Lock | None = None
         # Sliding window of token refresh attempt timestamps (monotonic seconds).
@@ -1095,6 +1102,40 @@ class CariadBaseClient:
                     "Token refresh storm — please reauthenticate"
                 )
             self._refresh_history.append(now)
+
+            # v2.15.0 — durable MBB bearer refresh. The MBB OAuth backend
+            # (mbboauth-1d) refreshes via grant_type=refresh_token with the
+            # registered ``X-Client-Id`` — NOT via self._auth.refresh() (which
+            # routes VW to the dead/attestation-gated CARIAD BFF). This is the
+            # whole point of the MBB recipe: a long-lived, password-free
+            # refresh that survives restarts. On failure the error propagates →
+            # the coordinator surfaces a reauth (the user re-runs the MBB QR).
+            if (
+                self._tokens
+                and self._tokens.strategy == "mbb"
+                and self._tokens.refresh_token
+            ):
+                from ..auth import _mbboauth  # noqa: PLC0415
+
+                mbb_tokens = await _mbboauth.refresh(
+                    self._session,
+                    self._tokens.refresh_token,
+                    client_id=self._mbb_client_id or _mbboauth.MBB_SHARED_CLIENT_ID,
+                )
+                from ..models import TokenSet  # noqa: PLC0415
+
+                self._tokens = TokenSet(
+                    access_token=mbb_tokens.access_token,
+                    refresh_token=mbb_tokens.refresh_token
+                    or self._tokens.refresh_token,
+                    id_token=self._tokens.id_token,
+                    expires_at=mbb_tokens.expires_at,
+                    strategy="mbb",
+                )
+                await self._notify_tokens_changed()
+                self.account_lock_detected = False
+                self._lock_history.clear()
+                return
 
             # v2.13.0 — device-code/QR portal tokens refresh at the IDP token
             # endpoint as a PUBLIC client, NOT via self._auth.refresh() (which

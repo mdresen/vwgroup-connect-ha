@@ -4,12 +4,20 @@
 
 from __future__ import annotations
 
+import asyncio
+import base64
 from datetime import datetime, timedelta, timezone
+import json
 import logging
 from typing import Any
 
 from .._util import compute_connection_state, safe_float, safe_int
-from ..exceptions import APIError, AuthenticationError
+from ..exceptions import (
+    APIError,
+    AuthenticationError,
+    SpinError,
+    VehicleCommandError,
+)
 from ..models import BRAND_VW_EU, VehicleData
 from .base import CariadBaseClient
 
@@ -151,6 +159,13 @@ class VWEUClient(CariadBaseClient):
                     "take a while to propagate before the car appears."
                 )
             return vins
+
+        # v2.15.0 — durable MBB strategy: the token-based CARIAD garage is
+        # dead/attestation-gated for VW EU, so enumerate VINs via the legacy
+        # MBB usermanagement endpoint with the durable MBB bearer (NOT the BFF,
+        # and NOT self._get — that would send the bearer to the dead BFF host).
+        if self._tokens and self._tokens.strategy == "mbb":
+            return await self._get_vehicles_via_mbb()
 
         data = await self._get(f"{_BASE}/vehicle/v1/vehicles")
         vehicles: list[dict[str, Any]] = data.get("data", [])
@@ -384,6 +399,13 @@ class VWEUClient(CariadBaseClient):
                     await portal.login(self._email, self._password)
                 data = await portal.get_vehicle_data(vin)
             return data
+
+        # v2.15.0 — durable MBB strategy: route the whole status read through
+        # the legacy VSR endpoint with the MBB bearer + registered X-Client-Id.
+        # Never falls through to the dead BFF for MBB entries.
+        if self._tokens and self._tokens.strategy == "mbb":
+            return await self._get_status_via_mbb_vsr(vin)
+
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus"
@@ -513,6 +535,11 @@ class VWEUClient(CariadBaseClient):
         on older / non-premium models that don't enforce the S-PIN
         requirement on lock.
         """
+        # v2.15.0 — durable MBB strategy uses the classic Car-Net RLU flow
+        # (3-leg S-PIN secure-token handshake + lock action), NOT the BFF.
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_rlu_mbb(vin, spin=spin, lock=True)
+            return
         primary_payload: dict[str, Any] = {"action": "lock"}
         fallback_payload: dict[str, Any] = {}
         if spin or self._spin:
@@ -535,6 +562,10 @@ class VWEUClient(CariadBaseClient):
         unlock endpoint accepts the PIN in the body, the same way the
         SecToken-using SEAT/CUPRA flow does in v1.8.4).
         """
+        # v2.15.0 — durable MBB strategy uses the classic Car-Net RLU flow.
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_rlu_mbb(vin, spin=spin, lock=False)
+            return
         primary_payload: dict[str, Any] = {"action": "unlock"}
         fallback_payload: dict[str, Any] = {}
         if spin or self._spin:
@@ -882,6 +913,287 @@ class VWEUClient(CariadBaseClient):
                     "MBB VSR Phase 2: filled combustion_range_km=%d for ***%s",
                     range_km, vin[-6:],
                 )
+
+    # ── v2.15.0 — durable MBB strategy: auth-isolated HTTP + read + RLU ─────
+    #
+    # All MBB requests carry the MBB bearer (``self._access_token`` for an
+    # ``mbb`` entry) + the registered ``X-Client-Id`` (``self._mbb_client_id``)
+    # via these DEDICATED getters/posters — never ``self._get``/``self._post``,
+    # which would send the MBB bearer to the dead CARIAD BFF host. This keeps
+    # the blast radius of the MBB strategy to exactly these methods.
+
+    def _mbb_user_id(self) -> str:
+        """Return the ``sub`` claim of the id_token (X-MbbUserId), or ''.
+
+        Decodes only the public JWT payload — never the signature, never
+        logged. Some MBB endpoints 403 without this header even when the
+        security token is valid.
+        """
+        tok = self._tokens.id_token if self._tokens else ""
+        if not tok:
+            return ""
+        try:
+            payload = tok.split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+        except (ValueError, IndexError, json.JSONDecodeError):
+            return ""
+        sub = claims.get("sub")
+        return sub if isinstance(sub, str) else ""
+
+    def _mbb_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
+        headers = {
+            "Authorization": f"Bearer {self._access_token}",
+            "X-Client-Id": self._mbb_client_id,
+            "Accept": "application/json",
+            "User-Agent": "okhttp/3.14.9",
+        }
+        uid = self._mbb_user_id()
+        if uid:
+            headers["X-MbbUserId"] = uid
+        if extra:
+            headers.update(extra)
+        return headers
+
+    async def _mbb_get(self, url: str) -> dict[str, Any]:
+        """GET an MBB endpoint with the MBB bearer + registered X-Client-Id."""
+        async with self._session.get(url, headers=self._mbb_headers()) as resp:
+            text = await resp.text()
+            if resp.status >= 400:
+                raise APIError(resp.status, url, body=text)
+            if not text:
+                return {}
+            try:
+                loaded = json.loads(text)
+            except ValueError:
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+    async def _mbb_post_json(self, url: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST a JSON body to an MBB endpoint (leg-2 SPIN completion)."""
+        headers = self._mbb_headers({"Content-Type": "application/json"})
+        async with self._session.post(url, json=body, headers=headers) as resp:
+            text = await resp.text()
+            if resp.status >= 400:
+                raise APIError(resp.status, url, body=text)
+            if not text:
+                return {}
+            try:
+                loaded = json.loads(text)
+            except ValueError:
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+    async def _mbb_post_rlu(self, url: str, sec_token: str) -> dict[str, Any]:
+        """POST the RLU lock/unlock action — EMPTY body, x-securityToken header.
+
+        The lock/unlock verb is encoded in the URL path tail, NOT a body
+        (the ``<rluAction>`` XML body is the deprecated pre-2019 variant).
+        The Content-Type must still be the RemoteLockUnlock vendor type or
+        the backend 415s.
+        """
+        from .._mbb import MBB_RLU_CONTENT_TYPE  # noqa: PLC0415
+
+        headers = self._mbb_headers({
+            "Content-Type": MBB_RLU_CONTENT_TYPE,
+            "x-securityToken": sec_token,
+        })
+        async with self._session.post(url, data=None, headers=headers) as resp:
+            text = await resp.text()
+            if resp.status >= 400:
+                raise APIError(resp.status, url, body=text)
+            if not text:
+                return {}
+            try:
+                loaded = json.loads(text)
+            except ValueError:
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+    async def _mbb_resolve_read_base(self, vin: str) -> str:
+        """Resolve the per-VIN MBB read base via homeRegion (≠ setter host)."""
+        from .._home_region import resolve_home_region  # noqa: PLC0415
+        from .._mbb import MBB_DEFAULT_READ_BASE  # noqa: PLC0415
+
+        try:
+            read_base = await resolve_home_region(
+                self, vin, cache=self._home_region_cache,
+            )
+        except Exception:  # noqa: BLE001
+            read_base = MBB_DEFAULT_READ_BASE
+        if "cariad.digital" in read_base or "bff.cariad" in read_base:
+            read_base = MBB_DEFAULT_READ_BASE
+        return read_base
+
+    async def _get_vehicles_via_mbb(self) -> list[str]:
+        """Enumerate paired VINs via the legacy MBB usermanagement endpoint.
+
+        NOTE: the garage-enumeration shape needs live confirmation against a
+        real VW EU MBB account. On failure/empty we return [] and log a
+        clear hint rather than falling through to the dead BFF.
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_DEFAULT_READ_BASE,
+            build_mbb_vehicles_url,
+            parse_mbb_vehicle_vins,
+        )
+
+        url = build_mbb_vehicles_url(MBB_DEFAULT_READ_BASE, self._brand.name, "DE")
+        try:
+            resp = await self._mbb_get(url)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "MBB garage enumeration failed (%s) — no vehicles returned. "
+                "If this persists the MBB usermanagement endpoint shape may "
+                "differ for your account.", type(err).__name__,
+            )
+            return []
+        vins = parse_mbb_vehicle_vins(resp)
+        self._vehicle_metadata = {}
+        if not vins:
+            _LOGGER.warning(
+                "MBB login OK but the usermanagement endpoint returned no "
+                "paired vehicles. Confirm the car is paired in the We Connect "
+                "app and that the MBB account has it.",
+            )
+        return vins
+
+    async def _get_status_via_mbb_vsr(self, vin: str) -> VehicleData:
+        """Read vehicle status via the durable MBB VSR endpoint.
+
+        Strongest for combustion/PHEV (tank %, total range, AdBlue); EV
+        SoC/charging field IDs are not yet catalogued so those stay at the
+        ``VehicleData`` defaults until a live VSR dump confirms them.
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_VSR_FIELD_ADBLUE_RANGE_KM,
+            MBB_VSR_FIELD_TANK_PCT,
+            MBB_VSR_FIELD_TOTAL_RANGE_KM,
+            build_mbb_vsr_status_url,
+            parse_mbb_vsr_field,
+        )
+
+        d = VehicleData(vin=vin)
+        read_base = await self._mbb_resolve_read_base(vin)
+        url = build_mbb_vsr_status_url(read_base, self._brand.name, "DE", vin)
+        _LOGGER.debug(
+            "MBB VSR status GET → %s (vin ***%s)",
+            url.replace(vin, f"***{vin[-6:]}"), vin[-6:],
+        )
+        try:
+            resp = await self._mbb_get(url)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "MBB VSR read failed for ***%s: %s — status unavailable",
+                vin[-6:], type(err).__name__,
+            )
+            return d
+
+        tank = safe_int(parse_mbb_vsr_field(resp, MBB_VSR_FIELD_TANK_PCT))
+        if tank is not None:
+            d.fuel_level = tank
+        rng = safe_int(parse_mbb_vsr_field(resp, MBB_VSR_FIELD_TOTAL_RANGE_KM))
+        if rng is not None:
+            d.combustion_range_km = rng
+        adblue = safe_int(parse_mbb_vsr_field(resp, MBB_VSR_FIELD_ADBLUE_RANGE_KM))
+        if adblue is not None:
+            d.adblue_range_km = adblue
+        return d
+
+    async def _command_rlu_mbb(
+        self, vin: str, *, spin: str = "", lock: bool = True,
+    ) -> None:
+        """Lock/unlock via the classic Car-Net 3-leg S-PIN SecToken + RLU flow.
+
+        Leg 1: GET the SPIN challenge.  Leg 2: POST the hashed SPIN → level-2
+        security token.  Leg 3: POST the empty-body lock/unlock action with
+        ``x-securityToken`` → poll the request status. The S-PIN is validated
+        locally first (a wrong hash burns one of the three allowed tries).
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_SETTER_BASE,
+            build_mbb_completed_body,
+            build_mbb_rlu_action_url,
+            build_mbb_spin_challenge_url,
+            build_mbb_spin_completed_url,
+            compute_spin_hash,
+            parse_mbb_completed_token,
+            parse_mbb_rlu_request_id,
+            parse_mbb_spin_challenge,
+            validate_spin_format,
+        )
+
+        verb = "lock" if lock else "unlock"
+        pin = spin or self._spin
+        if not pin:
+            raise SpinError("S-PIN required for MBB lock/unlock")
+        validate_spin_format(pin)  # raises locally BEFORE burning a try
+
+        setter = MBB_SETTER_BASE
+
+        # Leg 1 — challenge
+        ch_resp = await self._mbb_get(
+            build_mbb_spin_challenge_url(setter, vin, lock=lock)
+        )
+        level1, challenge, remaining = parse_mbb_spin_challenge(ch_resp)
+        if not level1 or not challenge:
+            raise VehicleCommandError(verb, "MBB SPIN challenge missing token/challenge")
+        if remaining is not None and remaining < 2:
+            raise SpinError(
+                f"S-PIN has only {remaining} attempt(s) left — refusing to "
+                "risk a lockout. Verify your S-PIN in the brand app first."
+            )
+
+        # Leg 2 — submit hashed SPIN, get the level-2 security token
+        spin_hash = compute_spin_hash(pin, challenge)
+        comp_resp = await self._mbb_post_json(
+            build_mbb_spin_completed_url(setter),
+            build_mbb_completed_body(level1, challenge, spin_hash),
+        )
+        sec_token = parse_mbb_completed_token(comp_resp)
+        if not sec_token:
+            raise VehicleCommandError(verb, "MBB SPIN completion returned no token")
+
+        # Leg 3 — the action (empty body) + poll
+        action_resp = await self._mbb_post_rlu(
+            build_mbb_rlu_action_url(setter, vin, lock=lock), sec_token,
+        )
+        request_id = parse_mbb_rlu_request_id(action_resp)
+        _LOGGER.info(
+            "MBB %s sent for ***%s (request_id=%s)",
+            verb, vin[-6:], request_id or "(none)",
+        )
+        if request_id:
+            await self._poll_mbb_rlu(setter, vin, request_id, verb)
+
+    async def _poll_mbb_rlu(
+        self, setter: str, vin: str, request_id: str, verb: str,
+    ) -> None:
+        """Poll the RLU request status until success/fail or timeout (~45s)."""
+        from .._mbb import (  # noqa: PLC0415
+            build_mbb_rlu_status_url,
+            parse_mbb_rlu_status,
+        )
+
+        url = build_mbb_rlu_status_url(setter, vin, request_id)
+        for _ in range(15):
+            await asyncio.sleep(3)
+            try:
+                resp = await self._mbb_get(url)
+            except Exception:  # noqa: BLE001
+                continue
+            status = parse_mbb_rlu_status(resp)
+            if status in ("request_successful", "succeeded"):
+                _LOGGER.info("MBB %s confirmed for ***%s", verb, vin[-6:])
+                return
+            if status in ("request_fail", "failed"):
+                raise VehicleCommandError(
+                    verb, f"MBB backend reported {status} (door open / key inside?)"
+                )
+        _LOGGER.warning(
+            "MBB %s status poll timed out for ***%s — command may still complete",
+            verb, vin[-6:],
+        )
 
     # ── v1/v2 endpoint dispatch (Session 3A — #51, #74) ─────────────────────
     #

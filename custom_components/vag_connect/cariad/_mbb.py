@@ -40,9 +40,17 @@ MBB endpoints — skip the dead Cariad-BFF call.
 - `command_wake` MBB fallback (most-requested command)
 - `_post_mbb_command` helper for future commands
 
-### Phase 2+ (future releases)
+### Phase 2 (v2.15.0 — this release)
 
-- `command_lock` / `command_unlock` MBB with SPIN secure-token flow
+- `command_lock` / `command_unlock` MBB with the S-PIN secure-token flow
+  (3-leg rolesrights handshake + RLU action — builders/hash/parsers below,
+  HTTP orchestration in `api/vw_eu.py` under the `mbb` auth strategy).
+  NOTE: the RLU action + rolesrights paths use the SETTER host under the
+  `/api` prefix and carry NO brand/country segment (DEX-confirmed) — unlike
+  the `/fs-car/...{Brand}/{country}...` VSR read paths above.
+
+### Phase 3+ (future releases)
+
 - `command_start_climate` / `_stop` MBB
 - `command_start_charging` / `_stop` MBB
 - `command_set_target_soc` MBB
@@ -56,6 +64,7 @@ MBB endpoints — skip the dead Cariad-BFF call.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -246,6 +255,51 @@ def build_mbb_vsr_status_url(
     return f"{read_base}/fs-car/bs/vsr/v1/{seg}/{country}/vehicles/{vin}/status"
 
 
+def build_mbb_vehicles_url(read_base: str, brand: str, country: str) -> str:
+    """Build the MBB garage-enumeration (paired vehicles) URL.
+
+    Pattern: ``{readBase}/fs-car/usermanagement/users/v1/{Brand}/{country}/vehicles``
+    — the classic Car-Net endpoint that lists the VINs paired to the
+    account (upstream audi_services ``_get_vehicles`` / volkswagencarnet).
+    Returns ``{"userVehicles": {"vehicle": ["VIN1", ...]}}``.
+
+    NOTE: needs live confirmation against a real VW EU MBB account; the
+    caller treats an empty/failed response as "no VINs" and the config
+    flow surfaces a clear message rather than crashing.
+    """
+    seg = mbb_brand_segment(brand)
+    return f"{read_base}/fs-car/usermanagement/users/v1/{seg}/{country}/vehicles"
+
+
+def parse_mbb_vehicle_vins(response: dict | None) -> list[str]:
+    """Extract the list of VINs from an MBB usermanagement response.
+
+    Defensive against the two observed envelopes:
+      - ``{"userVehicles": {"vehicle": ["VIN", ...]}}`` (list of strings)
+      - ``{"userVehicles": {"vehicle": [{"vin": "VIN"}, ...]}}`` (objects)
+    Returns ``[]`` for any unexpected shape.
+    """
+    if not isinstance(response, dict):
+        return []
+    user_vehicles = response.get("userVehicles")
+    if not isinstance(user_vehicles, dict):
+        return []
+    raw = user_vehicles.get("vehicle")
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return []
+    vins: list[str] = []
+    for item in raw:
+        if isinstance(item, str) and item:
+            vins.append(item)
+        elif isinstance(item, dict):
+            vin = item.get("vin") or item.get("content")
+            if isinstance(vin, str) and vin:
+                vins.append(vin)
+    return vins
+
+
 def parse_mbb_vsr_field(response: dict | None, field_id: str) -> str | None:
     """Walk a MBB VSR response and return the value for ``field_id``.
 
@@ -286,3 +340,193 @@ def parse_mbb_vsr_field(response: dict | None, field_id: str) -> str | None:
                     return None
                 return str(val)
     return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.15.0 — MBB S-PIN SecToken + RLU lock/unlock (Phase 2 two-way payoff)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# The classic Car-Net remote lock/unlock ("RLU") needs an action-bound
+# security token minted from the user's S-PIN. The handshake is three legs,
+# all on the homeRegion SETTER host (``MBB_SETTER_BASE``) under the ``/api``
+# prefix (NOT the ``/fs-car`` prefix the VSR reads use), and the RLU action
+# path carries NO brand/country segment — lock/unlock is the path tail:
+#
+#   1. GET  {setter}/api/rolesrights/authorization/v2/vehicles/{vin}
+#             /services/rlu_v1/operations/{LOCK|UNLOCK}/security-pin-auth-requested
+#        → securityPinAuthInfo.securityToken (level-1) + .securityPinTransmission
+#          .challenge (hex) + .remainingTries
+#   2. POST {setter}/api/rolesrights/authorization/v2/security-pin-auth-completed
+#        body {securityPinAuthentication:{securityPin:{challenge,
+#              securityPinHash}, securityToken: <level-1>}}
+#        → securityToken (level-2) = the ``x-securityToken`` for the command
+#   3. POST {setter}/api/bs/rlu/v1/vehicles/{vin}/{lock|unlock}
+#        Content-Type application/vnd.vwg.mbb.RemoteLockUnlock_v1_0_0+xml,
+#        header x-securityToken: <level-2>, EMPTY body
+#        → rluActionResponse.requestId ; poll
+#          {setter}/api/bs/rlu/v1/vehicles/{vin}/requests/{requestId}/status
+#
+# Grounding (two independent sources + our own DEX):
+#   - DEX literals (de.volkswagen.carnet.eu.eremote + cz.skodaauto.connect +
+#     SEAT/CUPRA mod2connectapp): ``/bs/rlu/v1/vehicles/{vehicleVin}/lock``,
+#     ``…/unlock``, ``…/requests/{requestId}/status``; ``rlu_v1/operations/
+#     LOCK|UNLOCK``; ``security-pin-auth-requested``/``-completed``;
+#     ``securityPinHash``/``securityPinTransmission``/``challenge``.
+#   - upstream audi_connect_ha ``audi_services.py`` (_get_security_token,
+#     set_vehicle_lock, _generate_security_pin_hash) and the volkswagencarnet
+#     ``vw_connection.hash_spin`` — both hex-DECODE the S-PIN and SHA-512 it
+#     with the hex-decoded challenge (NOT HMAC, NOT utf-8).
+MBB_RLU_CONTENT_TYPE = "application/vnd.vwg.mbb.RemoteLockUnlock_v1_0_0+xml"
+
+
+def compute_spin_hash(spin: str, challenge: str) -> str:
+    """Return the uppercase SHA-512 hex of hex(spin) ++ hex(challenge).
+
+    CRITICAL (the classic footgun): the S-PIN is treated as a HEX string
+    and decoded with ``bytes.fromhex`` — NOT utf-8 encoded. A 4-digit PIN
+    ``"1234"`` hashes the bytes ``0x12 0x34``, not the ASCII ``0x31..0x34``.
+    The challenge (server-supplied) is hex-decoded the same way. It is a
+    plain SHA-512, not an HMAC. Confirmed in BOTH audi_connect_ha
+    ``util.to_byte_array`` and volkswagencarnet ``hash_spin``.
+
+    Raises ``ValueError`` (via ``bytes.fromhex``) if either input is not
+    valid hex — call ``validate_spin_format`` up front so a malformed PIN
+    fails BEFORE the challenge request (a wrong hash burns a SPIN try
+    toward the 3-strike lockout).
+    """
+    pin_bytes = bytes.fromhex(spin)
+    challenge_bytes = bytes.fromhex(challenge)
+    return hashlib.sha512(pin_bytes + challenge_bytes).hexdigest().upper()
+
+
+def validate_spin_format(spin: str) -> None:
+    """Raise ``ValueError`` if ``spin`` is unusable for the hash.
+
+    VW/Audi S-PINs are 4 digits (some 6); decimal digits are valid hex and
+    even-length, so a normal PIN passes. Guarding here means a typo'd /
+    empty / odd-length SPIN raises locally instead of wasting one of the
+    three allowed attempts against the backend.
+    """
+    if not spin:
+        raise ValueError("S-PIN is empty — configure it in the integration options")
+    if len(spin) % 2 != 0:
+        raise ValueError("S-PIN must have an even number of digits for the MBB hash")
+    try:
+        bytes.fromhex(spin)
+    except ValueError as exc:
+        raise ValueError("S-PIN must be digits only (hex-decodable)") from exc
+
+
+def build_mbb_spin_challenge_url(setter_base: str, vin: str, *, lock: bool) -> str:
+    """GET URL for leg 1 — request the SPIN challenge for LOCK/UNLOCK."""
+    op = "LOCK" if lock else "UNLOCK"
+    return (
+        f"{setter_base}/api/rolesrights/authorization/v2/vehicles/"
+        f"{vin.upper()}/services/rlu_v1/operations/{op}/security-pin-auth-requested"
+    )
+
+
+def build_mbb_spin_completed_url(setter_base: str) -> str:
+    """POST URL for leg 2 — submit the hashed SPIN, get the level-2 token."""
+    return f"{setter_base}/api/rolesrights/authorization/v2/security-pin-auth-completed"
+
+
+def build_mbb_rlu_action_url(setter_base: str, vin: str, *, lock: bool) -> str:
+    """POST URL for leg 3 — the actual lock/unlock action (no brand/country)."""
+    tail = "lock" if lock else "unlock"
+    return f"{setter_base}/api/bs/rlu/v1/vehicles/{vin.upper()}/{tail}"
+
+
+def build_mbb_rlu_status_url(setter_base: str, vin: str, request_id: str) -> str:
+    """GET URL to poll the RLU action's request status."""
+    return (
+        f"{setter_base}/api/bs/rlu/v1/vehicles/{vin.upper()}/requests/"
+        f"{request_id}/status"
+    )
+
+
+def build_mbb_completed_body(level1_token: str, challenge: str, spin_hash: str) -> dict:
+    """Build the leg-2 ``security-pin-auth-completed`` JSON body.
+
+    Shape (upstream-confirmed)::
+
+        {"securityPinAuthentication": {
+            "securityPin": {"challenge": <hex>, "securityPinHash": <UPPER hex>},
+            "securityToken": <level-1 token>}}
+    """
+    return {
+        "securityPinAuthentication": {
+            "securityPin": {
+                "challenge": challenge,
+                "securityPinHash": spin_hash,
+            },
+            "securityToken": level1_token,
+        }
+    }
+
+
+def parse_mbb_spin_challenge(response: dict | None) -> tuple[str | None, str | None, int | None]:
+    """Extract ``(level1_token, challenge, remaining_tries)`` from leg 1.
+
+    Defensive against a missing ``securityPinAuthInfo`` envelope / fields.
+    ``remaining_tries`` is None when the backend doesn't report it.
+    """
+    if not isinstance(response, dict):
+        return None, None, None
+    info = response.get("securityPinAuthInfo")
+    if not isinstance(info, dict):
+        return None, None, None
+    level1 = info.get("securityToken")
+    transmission = info.get("securityPinTransmission")
+    challenge = None
+    remaining = None
+    if isinstance(transmission, dict):
+        challenge = transmission.get("challenge")
+        rt = transmission.get("remainingTries")
+        if isinstance(rt, int):
+            remaining = rt
+    return (
+        level1 if isinstance(level1, str) else None,
+        challenge if isinstance(challenge, str) else None,
+        remaining,
+    )
+
+
+def parse_mbb_completed_token(response: dict | None) -> str | None:
+    """Extract the level-2 ``securityToken`` from the leg-2 response."""
+    if not isinstance(response, dict):
+        return None
+    tok = response.get("securityToken")
+    return tok if isinstance(tok, str) else None
+
+
+def parse_mbb_rlu_request_id(response: dict | None) -> str | None:
+    """Extract ``rluActionResponse.requestId`` from the leg-3 response."""
+    if not isinstance(response, dict):
+        return None
+    action = response.get("rluActionResponse")
+    if not isinstance(action, dict):
+        return None
+    request_id = action.get("requestId")
+    if request_id is None:
+        return None
+    return str(request_id)
+
+
+def parse_mbb_rlu_status(response: dict | None) -> str | None:
+    """Extract the RLU request status string from the poll response.
+
+    Returns e.g. ``"request_successful"`` / ``"request_fail"`` /
+    ``"request_in_progress"`` — or None if the envelope is unexpected.
+    The status lives at ``requestStatusResponse.status`` (upstream shape);
+    we also accept a bare top-level ``status`` for resilience.
+    """
+    if not isinstance(response, dict):
+        return None
+    wrapper = response.get("requestStatusResponse")
+    if isinstance(wrapper, dict):
+        status = wrapper.get("status")
+        if isinstance(status, str):
+            return status
+    status = response.get("status")
+    return status if isinstance(status, str) else None

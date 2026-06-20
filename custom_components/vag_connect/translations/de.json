@@ -57,7 +57,22 @@
         "menu_options": {
           "browser_login": "Browser-Login (empfohlen)",
           "email_password": "E-Mail + Passwort (Legacy)",
-          "website_authproxy": "Volkswagen.de Website (Beta — nur Lesen)"
+          "website_authproxy": "Volkswagen.de Website (Beta — nur Lesen)",
+          "mbb_login": "Volkswagen EU — Dauerhafter Login (MBB, Zwei-Wege-Alpha)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — Dauerhafter Login (MBB, ALPHA)",
+        "description": "**Experimentell, freiwillig — nur Volkswagen EU.** Eine Browser-Bestätigung (kein Passwort in Home Assistant) erzeugt über das Legacy-MBB-Backend ein dauerhaftes, erneuerbares Token. Anders als das nur-lesende Portal übersteht dies Neustarts und unterstützt Zwei-Wege-Fernverriegelung. Trage unten deine S-PIN ein, um Ver-/Entriegeln zu aktivieren. Im nächsten Schritt siehst du einen kurzen Code und eine URL für ein beliebiges Gerät.",
+        "data": {
+          "spin": "S-PIN",
+          "scan_interval": "Aktualisierungsintervall",
+          "force_enable_access": "Türstatus erzwingen"
+        },
+        "data_description": {
+          "spin": "Optionale 4-stellige Sicherheits-PIN — erforderlich für Fernver-/entriegelung.",
+          "scan_interval": "Minuten zwischen den Fahrzeug-Abfragen.",
+          "force_enable_access": "Türstatus-Entitäten auch dann erzwingen, wenn das Fahrzeug die Daten als fehlend meldet."
         }
       },
       "website_authproxy": {

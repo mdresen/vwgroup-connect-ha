@@ -38,6 +38,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a2] - 2026-06-20
+
+> **Alpha / pre-release** — please live-test and report back. Expect rough edges.
+
+### Added
+
+- **Volkswagen EU durable login (MBB) — now a real option in the integration, not just a test script.** There's a new sign-in choice "Volkswagen EU — Durable Login (MBB)": you confirm once in your browser (no password stored in Home Assistant) and the integration keeps a long-lived, self-refreshing session that survives restarts — unlike the read-only portal. Add your S-PIN in the options to also get **two-way lock/unlock**. VW-only, alpha — the status read works best for combustion/PHEV (fuel level, range, AdBlue) for now; EV battery fields via this path come later.
+- **Remote lock/unlock over the MBB path**, using the classic security-PIN handshake. The S-PIN is checked locally before anything is sent so a typo can't burn one of your three tries, and the integration refuses to act if the car reports you're down to your last attempt (3 wrong PINs locks it until you reset in the car/app).
+
+> ⚠️ The durable VW path needs a confirmation from your account to fully verify end-to-end on real cars — that's exactly what this alpha is for. If lock/unlock reports a failure with the doors open or the key inside the car, that's the car refusing, not a bug.
+
 ## [2.15.0a1] - 2026-06-20
 
 > **Alpha / pre-release** — ships the latest reverse-engineering findings for live testing. Expect rough edges; please report what you see.

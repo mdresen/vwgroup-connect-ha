@@ -631,6 +631,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         if persisted is not None:
             self._cariad_client.set_persisted_tokens(persisted)
+            # v2.15.0 — thread the registered MBB X-Client-Id into the client
+            # so the durable MBB strategy's refresh + VSR read + RLU command
+            # all send the same client id that minted the bearer (a mismatch
+            # 403s). No-op for every non-MBB entry (attribute defaults to "").
+            if getattr(persisted, "strategy", "") == "mbb":
+                self._cariad_client._mbb_client_id = self.entry.data.get(
+                    "mbb_client_id", ""
+                )
         # Fire-and-forget save callback — never blocks API path.
         self._cariad_client.on_tokens_changed = self._token_storage.save
 

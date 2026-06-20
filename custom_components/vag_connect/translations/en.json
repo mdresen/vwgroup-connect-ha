@@ -57,7 +57,22 @@
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
           "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+          "website_authproxy": "Volkswagen.de website (beta — read-only)",
+          "mbb_login": "Volkswagen EU — Durable Login (MBB, two-way alpha)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — Durable Login (MBB, ALPHA)",
+        "description": "**Experimental, opt-in — Volkswagen EU only.** A browser confirmation (no password stored in Home Assistant) mints a durable, refreshable token via the legacy MBB backend. Unlike the read-only portal, this survives restarts and supports two-way remote lock/unlock. Add your S-PIN below to enable lock/unlock. On the next screen you will see a short code and a URL to open on any device.",
+        "data": {
+          "spin": "S-PIN",
+          "scan_interval": "Update Interval",
+          "force_enable_access": "Force Door Status"
+        },
+        "data_description": {
+          "spin": "Optional 4-digit Security-PIN — required for remote lock/unlock.",
+          "scan_interval": "Minutes between vehicle data polls.",
+          "force_enable_access": "Force door-status entities even when the vehicle reports the data missing."
         }
       },
       "website_authproxy": {
