@@ -77,11 +77,23 @@ _ALTERNATE_CLIENT_IDS: dict[str, tuple[str, ...]] = {
         # Both are NOT our current hardcoded client_id — worth trying as
         # candidates if the primary one starts 401/403'ing.
         # v2.14.11 — 2026-06-18 cross-brand app-atlas re-confirmed these are
-        # the ONLY two VW EU dilab clients shipped (com.volkswagen.weconnect);
-        # there is no third/rotated client to chase — the VW EU degrade to the
-        # read-only portal is an App-Check/Play-Integrity wall, not a client_id.
+        # the ONLY two VW EU dilab clients in the modern app (com.volkswagen.weconnect);
+        # the VW EU degrade to the read-only portal is fundamentally an
+        # App-Check/Play-Integrity wall, not a client_id. The two below are the
+        # canonical modern-app clients.
         "4edc53db-4b79-4e37-b614-19a95dea20dc@apps_vw-dilab_com",
         "a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
+        # v2.14.11 LONG-SHOT — dilab clients from OTHER VW-published apps, added
+        # as tail candidates purely to see if one lucks past the wall (VW EU is
+        # already on the read-only portal, so there is nothing to lose; these
+        # only get tried after the two canonical clients 4xx). Low odds — the
+        # blocker is attestation, not the client — BUT 9496332b ships in the
+        # legacy We Connect / Car-Net e-Remote app whose MBB stack PREDATES the
+        # CARIAD App-Check, so it is the one candidate that could authorize via
+        # a less-guarded path. ac42b0fa is the We Connect Go (OBD) client. Both
+        # are LIVE-TEST candidates: keep only if a tester confirms a real token.
+        "9496332b-ea03-4091-a224-8c746b885068@apps_vw-dilab_com",
+        "ac42b0fa-3b11-48a0-a941-43a399e7ef84@apps_vw-dilab_com",
     ),
     # v2.14.11 — Skoda/SEAT/CUPRA alternates from the 2026-06-18 cross-brand
     # app-atlas (apkeep apk-pure pull + DEX/config grep, verified absent from
