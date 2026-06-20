@@ -1619,8 +1619,9 @@ class IDKAuth:
         # or new post-WAF preferred). We try the hardcoded canonical
         # first (worked for years; multi-source verified), then the APK
         # alternates, and only fail if ALL candidates return 4xx.
-        # Non-Audi/VW brands stay single-shot (no fallback chain because
-        # their IDPs are stable).
+        # v2.14.11 — non-Audi/VW brands now ALSO walk their client_id chain
+        # (canonical first, then ``_ALTERNATE_CLIENT_IDS[brand]``), but
+        # WITHOUT the qmauth assertion layer (their IDPs don't sign one).
         #
         # v2.5.7 R2 — combined client_id × qmauth attempts list. For
         # CARIAD-BFF brands we build the Cartesian product of:
@@ -1642,8 +1643,23 @@ class IDKAuth:
                 resolver.provenance(),
             )
         else:
-            client_id_chain = [self._brand.client_id]
-            attempts = [(self._brand.client_id, "", "")]
+            # v2.14.11 — non-CARIAD brands (Skoda/SEAT/CUPRA/…) now also fall
+            # back through their atlas alternates instead of being single-shot.
+            # SAFETY: the proven hardcoded primary is tried FIRST, then the
+            # ``_ALTERNATE_CLIENT_IDS[brand]`` alternates only if it 4xx's.
+            # (We do NOT reuse oauth_client_id_chain() order verbatim here
+            # because it appends the canonical LAST — fine for Audi/VW where
+            # the APK cache surfaces the primary early, but these brands have
+            # no APK cache, so we must pin the primary to the front.) They
+            # carry NO qmauth assertion, so the qmauth tuple stays empty and
+            # the header branch below uses ``_form_headers()`` unchanged.
+            _primary = self._brand.client_id
+            _alts = [
+                cid for cid in resolver.oauth_client_id_chain()
+                if cid != _primary
+            ]
+            client_id_chain = [_primary, *_alts]
+            attempts = [(cid, "", "") for cid in client_id_chain]
 
         last_error: AuthenticationError | None = None
         for idx, (client_id, qm_secret, qm_client_id) in enumerate(attempts):

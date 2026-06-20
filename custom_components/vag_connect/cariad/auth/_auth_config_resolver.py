@@ -76,8 +76,37 @@ _ALTERNATE_CLIENT_IDS: dict[str, tuple[str, ...]] = {
         # Discovered in classes3.dex of WeConnect ID 3.61.0 (post-WAF prep version).
         # Both are NOT our current hardcoded client_id — worth trying as
         # candidates if the primary one starts 401/403'ing.
+        # v2.14.11 — 2026-06-18 cross-brand app-atlas re-confirmed these are
+        # the ONLY two VW EU dilab clients shipped (com.volkswagen.weconnect);
+        # there is no third/rotated client to chase — the VW EU degrade to the
+        # read-only portal is an App-Check/Play-Integrity wall, not a client_id.
         "4edc53db-4b79-4e37-b614-19a95dea20dc@apps_vw-dilab_com",
         "a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
+    ),
+    # v2.14.11 — Skoda/SEAT/CUPRA alternates from the 2026-06-18 cross-brand
+    # app-atlas (apkeep apk-pure pull + DEX/config grep, verified absent from
+    # this repo before adding). These brands previously had NO fallback key at
+    # all — a single IdP client-rotation would have locked them out. Tried only
+    # after the canonical client 401/403s at the IDK authorize/token step
+    # (see idk.py), so they are inert under normal operation.
+    "skoda": (
+        # cz.skodaauto.myskoda classes3.dex — the ONLY alternate co-located
+        # with the canonical 7f045eee in the modern app; also present in the
+        # legacy cz.skodaauto.connect build (cross-app => production, not a
+        # per-feature client). Strongest Skoda fallback.
+        "4fffed6b-815a-4b6f-af4a-b0ccccb4ff6d@apps_vw-dilab_com",
+    ),
+    "seat": (
+        # Shared SEAT<->CUPRA OLA client pair — present in BOTH
+        # com.seat.myseat.ola AND com.cupra.mycupra classes (rotated OLA
+        # client set). Either may be accepted if 99a5b77d/3c756d46 rotate.
+        "3f16b970-38ab-49c6-a1bf-af38460fd388@apps_vw-dilab_com",
+        "f1cd60b6-e40f-4bf2-822d-0201eabc09b5@apps_vw-dilab_com",
+    ),
+    "cupra": (
+        # Same shared OLA client pair as SEAT (above).
+        "3f16b970-38ab-49c6-a1bf-af38460fd388@apps_vw-dilab_com",
+        "f1cd60b6-e40f-4bf2-822d-0201eabc09b5@apps_vw-dilab_com",
     ),
 }
 
