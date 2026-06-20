@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v2.8.0 Auxiliary Heating (Standheizung) entities.
 
 Audi + VW EU CARIAD-BFF parking-pre-heater wiring. SEAT/CUPRA OLA

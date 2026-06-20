@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 """Local DAG + MBB live test harness.
 
 Drives the RFC-8628 Device Authorization Grant for a chosen brand: prints a
@@ -48,7 +48,7 @@ def _jwt_claims(token: str) -> dict[str, Any]:
 
 async def _mbb_register(
     session: Any, id_token: str, desired_client_id: str | None = None
-) -> str | None:
+) -> tuple[str | None, str | None]:
     """POST the classic Car-Net MBB register/v1 step. Returns the registered
     client_id on success, else None. ``desired_client_id`` pins the client_id
     in the body so the registered client == the id_token's aud (MBB requires
@@ -76,17 +76,20 @@ async def _mbb_register(
             text = await resp.text()
             if resp.status in (200, 201):
                 try:
-                    cid = json.loads(text).get("client_id")
+                    payload = json.loads(text)
                 except ValueError:
-                    cid = None
-                print(f"    [register OK] HTTP {resp.status} — client_id "
-                      f"{'returned: ' + cid[:8] + '…' if cid else 'NOT in response'}")
-                return cid
-            print(f"    [register rejected] HTTP {resp.status}: {text[:160]}")
-            return None
+                    payload = {}
+                # Show the FULL shape (keys) — does it carry a client_secret
+                # (→ confidential exchange) or extra fields we must echo back?
+                print(f"    [register OK] HTTP {resp.status}  keys={list(payload.keys())}  "
+                      f"client_id={'yes' if payload.get('client_id') else 'no'}  "
+                      f"client_secret={'PRESENT' if payload.get('client_secret') else 'absent'}")
+                return payload.get("client_id"), payload.get("client_secret")
+            print(f"    [register rejected] HTTP {resp.status}: {text[:300]}")
+            return None, None
     except Exception as exc:  # noqa: BLE001
         print(f"    [register error] {exc}")
-        return None
+        return None, None
 
 
 async def main(brand: str) -> int:
@@ -111,7 +114,11 @@ async def main(brand: str) -> int:
     # so "volkswagen" routes through the portal client here.
     portal = portal_dag_config(brand)
     if override:
-        client_id, scope, route = override, "openid profile cars", "override"
+        # ``mbb`` scope is the key: it makes identity.vwgroup.io issue an
+        # id_token targeted at the MBB backend audience (VWGMBB01DELIV1) rather
+        # than the OIDC client — exactly what the e-Remote app requests and
+        # what the MBB token exchange demands (id_token.aud == VWGMBB01DELIV1).
+        client_id, scope, route = override, "openid profile mbb cars", "override"
     elif brand in DAG_ENABLED_BRANDS:
         client_id, scope, route = BRANDS[brand].client_id, "openid profile", "app"
     elif portal is not None:
@@ -163,29 +170,58 @@ async def main(brand: str) -> int:
         aud_str = aud[0] if isinstance(aud, list) else aud
         print(f"\n[*] MBB register/v1 (pinned client_id = aud {str(aud_str)[:8]}…) …",
               flush=True)
-        reg_client_id = await _mbb_register(session, tokens.id_token, desired_client_id=aud_str)
+        reg_client_id, reg_secret = await _mbb_register(
+            session, tokens.id_token, desired_client_id=aud_str)
 
-        # ── Step 2: token exchange. Try (a) the id_token's own aud as
-        #    X-Client-Id (the match MBB wants), (b) whatever register returned,
-        #    (c) the static candidates. ──
+        any_ok = False
+
+        # ── ADOPT TEST (Prash's idea): take the freshly-registered MBB client
+        #    and RE-AUTHORIZE with it at identity.vwgroup.io, so the new
+        #    id_token's aud == the registered client → the exchange should
+        #    finally match. Only works if the registered client is an OIDC
+        #    client (request_device_code fails fast otherwise — no wait). ──
+        if reg_client_id:
+            print(f"\n[*] ADOPT test: re-authorize with registered client "
+                  f"{reg_client_id[:8]}… …", flush=True)
+            try:
+                dag2 = DeviceAuthorizationGrant(
+                    session, reg_client_id, scope="openid profile cars")
+                dc2 = await dag2.request_device_code()
+                print("    [YES] registered client IS OIDC-usable — confirm a 2nd link:")
+                print("     ", dc2.verification_uri_complete or dc2.verification_uri)
+                print("      waiting for 2nd confirm …", flush=True)
+                tok2 = await dag2.poll_for_tokens(
+                    dc2.device_code, interval=dc2.interval, expires_in=dc2.expires_in)
+                c2 = _jwt_claims(tok2.id_token)
+                print(f"    2nd id_token aud={c2.get('aud')}")
+                try:
+                    mbb = await _mbboauth.exchange_id_token(
+                        session, tok2.id_token, client_id=reg_client_id)
+                    print(f"    [BREAKTHROUGH] MBB exchange OK — durable "
+                          f"refresh_token present: {bool(mbb.refresh_token)}")
+                    any_ok = True
+                except Exception as exc:  # noqa: BLE001
+                    print(f"    [adopt exchange rejected] {str(exc)[:300]}")
+            except Exception as exc:  # noqa: BLE001
+                print(f"    [NO] registered client not OIDC-usable: {str(exc)[:160]}")
+
+        # ── Fallback diagnostics: try the static candidates + capture the FULL
+        #    'Audiences' error (now untruncated). ──
         candidates: dict[str, str] = {}
         if aud_str:
             candidates["aud-as-clientid " + str(aud_str)[:8]] = str(aud_str)
         if reg_client_id and reg_client_id != aud_str:
             candidates["REGISTERED " + reg_client_id[:8]] = reg_client_id
         candidates["shared mod2/eRemote 9523ee15"] = _mbboauth.MBB_SHARED_CLIENT_ID
-        any_ok = False
         for label, cid in candidates.items():
             print(f"\n[*] MBB exchange with X-Client-Id = {label} …", flush=True)
             try:
                 mbb = await _mbboauth.exchange_id_token(session, tokens.id_token, client_id=cid)
                 print(f"    [OK] HTTP 200 — access_token len={len(mbb.access_token)}, "
-                      f"durable refresh_token present: {bool(mbb.refresh_token)}, "
-                      f"expires_at_set={bool(mbb.expires_at)}")
+                      f"durable refresh_token present: {bool(mbb.refresh_token)}")
                 any_ok = True
             except Exception as exc:  # noqa: BLE001
-                # exception message already carries the HTTP status + body head
-                print(f"    [rejected] {str(exc)[:160]}")
+                print(f"    [rejected] {str(exc)[:380]}")
 
         print("\n" + ("=" * 64))
         if any_ok:

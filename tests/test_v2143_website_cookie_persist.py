@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.14.3 - website-authproxy login-cookie persistence.
 
 The OPT-IN volkswagen.de website-authproxy channel (v2.14.0) logged in once
