@@ -1013,7 +1013,12 @@ class CariadBaseClient:
         headers["Authorization"] = f"Bearer {self._access_token}"
         headers["Accept"] = "application/json"
         headers["Content-Type"] = headers.get("Content-Type", "application/json")
-        headers["User-Agent"] = self._brand.user_agent
+        # v2.14.11 — setdefault, not unconditional assignment. The OLA brands
+        # (SEAT/CUPRA) thread a power-user ``user_agent_override`` through
+        # ``seat_cupra.py`` into ``headers`` BEFORE this call; an unconditional
+        # ``=`` here clobbered it, making the OptionsFlow override dead. Now the
+        # caller-supplied UA wins and BrandConfig.user_agent is only the default.
+        headers.setdefault("User-Agent", self._brand.user_agent)
 
         try:
             async with self._session.request(
