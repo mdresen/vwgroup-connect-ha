@@ -246,6 +246,20 @@ DECLARED_CAPABILITIES: dict[str, dict[str, bool]] = {
         "fcm_push": True,
         "dag_login": True,
     },
+    "bentley": {
+        # v2.14.11 — Bentley runs on the Audi CARIAD-BFF (shared IDK client +
+        # tenant), so its backend capability surface mirrors Audi. Wired
+        # read-only for now (two-way is live-test gated); the BACKEND supports
+        # these. dag_login False — Bentley is not in DAG_ENABLED_BRANDS.
+        "auxiliary_heating": True,
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": True,
+        "brake_service": True,
+        "ola_push": False,
+        "fcm_push": True,
+        "dag_login": False,
+    },
     "volkswagen": {
         "auxiliary_heating": True,
         "charging": True,

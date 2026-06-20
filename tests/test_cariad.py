@@ -35,6 +35,8 @@ class TestModels:
         assert set(BRANDS.keys()) == {
             "volkswagen", "audi", "skoda", "seat", "cupra",
             "volkswagen_na", "porsche",
+            # v2.14.11 — Bentley wired (Audi IDK tenant; login+read).
+            "bentley",
         }
 
     def test_brand_vw_client_id(self):

@@ -145,63 +145,59 @@ BRAND_PORSCHE = BrandConfig(
     scope="openid profile email offline_access mbb vin cars charging",
 )
 
-# v2.2.0 Phase 4 PR #15/20 — Lamborghini brand-adapter scaffold.
+# Lamborghini Unica brand-config — NOT wired, NOT IDK-compatible.
 #
-# **BETA — TESTER VALIDATION PENDING.** This brand-config is NOT wired
-# into the ``BRANDS`` registry / config-flow / factory yet — it ships
-# as scaffolding only so a tester can import the class directly and
-# manually exercise the IDK flow against the Lamborghini Unica app
-# to validate the client_id + redirect_uri.
-#
-# Inheritance rationale: Lamborghini Unica is a VAG luxury brand
-# fronted by the same Cariad-BFF backend as VW EU + Audi (verified
-# via API-Evangelist OpenAPI catalog metadata 2026-05-03 — same
-# ``emea.bff.cariad.digital`` host). So the data-fetch path inherits
-# unchanged from ``VWEUClient`` — only the brand-token + UA differ.
-#
-# Placeholder values below MUST be replaced by a tester with a
-# Lamborghini Unica app install (Android/iOS) inspecting the
-# OAuth flow with mitmproxy / Charles. Until then, attempting to
-# use this brand WILL fail at the IDK login step with HTTP 400.
-#
-# Activation in v2.2.x or v2.3.x once tester returns confirmed
-# values. The wiring into ``BRANDS`` + factory + config-flow is
-# a separate (one-liner) PR once values are known.
+# v2.14.11 — the 2026-06-18 app-atlas (lamborghini.connectedcar) DISPROVED
+# the original "same Cariad-BFF as Audi/VW EU" assumption. Unica ships NO
+# @apps_vw-dilab_com client_id at all; it logs in via MBB co-auth through
+# Lamborghini's own SDP gateway (token endpoint sdp.lamborghini.com/
+# unicav2/mbbcoauth, scope sc2:fal, client_id held SERVER-SIDE on the proxy).
+# AWS Cognito is analytics-only. So this BrandConfig's api_base + dilab
+# client_id are STRUCTURALLY WRONG for Unica — kept only as a documented
+# placeholder. A real integration needs a dedicated SDP-proxy MBB-co-auth
+# adapter (Tier-3; see api/lambo.py). Do NOT add to BRANDS/factory/config-flow.
 BRAND_LAMBO = BrandConfig(
     name="lambo",
-    client_id="PLACEHOLDER-lambo-tester-please-confirm@apps_vw-dilab_com",
+    # SERVER-SIDE: the real MBB client is held on the SDP proxy and is not in
+    # the APK. This dilab placeholder is a non-functional marker only.
+    client_id="SERVER-SIDE-sdp-proxy-not-in-apk@apps_vw-dilab_com",
     redirect_uri="unica://oauth-callback",
     user_agent="Unica/1.0.0 Android",
+    # WRONG for Unica (real flow is sdp.lamborghini.com/unicav2/mbbcoauth);
+    # left only so the scaffold imports. Do not rely on this.
     api_base="https://emea.bff.cariad.digital",
-    # Scope inherited from VW EU + Audi pattern; tester may need to
-    # adjust if the Lamborghini app uses a tighter or wider claim set.
-    scope="openid profile badge cars vin",
+    scope="sc2:fal",
 )
 
-# v2.2.0 Phase 4 PR #16/20 — Bentley brand-adapter scaffold.
+# Bentley brand-adapter — v2.2.0 scaffold, ACTIVATED v2.14.11 (login+read).
 #
-# **BETA — TESTER VALIDATION PENDING.** Same pattern as ``BRAND_LAMBO``
-# (PR #15) — scaffolding-only, NOT wired into the ``BRANDS`` registry
-# / config-flow / factory yet.
-#
-# Inheritance rationale: Bentley "My Bentley" app is a VAG luxury
-# brand fronted by the same Cariad-BFF backend as VW EU + Audi +
-# Lamborghini (verified via API-Evangelist OpenAPI catalog metadata
-# 2026-05-03 — same ``emea.bff.cariad.digital`` host). So the data-
-# fetch path inherits unchanged from ``VWEUClient`` — only the
-# brand-token + UA differ.
-#
-# Placeholder values below MUST be replaced by a tester with a My
-# Bentley app install (Android/iOS) inspecting the OAuth flow with
-# mitmproxy / Charles. Until then, attempting to use this brand
-# WILL fail at the IDK login step with HTTP 400.
-#
-# Activation in v2.2.x or v2.3.x once tester returns confirmed
-# values — one-liner factory + BRANDS registry addition.
+# Inheritance rationale: Bentley "My Bentley" is a VAG luxury brand on the
+# same Cariad-BFF backend as Audi (atlas-confirmed: Bentley's IDK client_id
+# is byte-identical to Audi's primary). Data-fetch path inherits unchanged
+# from ``VWEUClient``; only the brand-token + UA differ. Wired into BRANDS +
+# factory + config-flow. Ships read-only (two-way is a live-test-gated
+# follow-up — see the BRAND_BENTLEY comment + idk.py audi/volkswagen gates).
 BRAND_BENTLEY = BrandConfig(
+    # v2.14.11 — scaffold values RESOLVED from the 2026-06-18 app-atlas
+    # (uk.co.bentley.mybentley). ``assets/assets/url-configuration.json``
+    # key ``idkClientIDLive`` = 09b6cbec…  — i.e. Bentley runs on the SAME
+    # IDK client + tenant as Audi (Bentley = Audi platform). The two
+    # Bentley-unique dilab ids (7cd71138 Approval, a9d0a852 Dev) are
+    # non-production and are intentionally NOT used. redirect_uri taken
+    # from the app DEX (``mybentleyapp:///``) — the old scaffold value
+    # ``mybentley://oauth-callback`` was wrong and would fail server-side
+    # redirect validation.
+    #
+    # WIRED read-only: the qmauth/CARIAD assertion headers are still gated
+    # to audi/volkswagen (idk.py), so Bentley's classic token exchange will
+    # degrade to the read-only data_act_portal until a tester with a real
+    # My Bentley account confirms the Audi-qmauth secret is accepted for
+    # client 09b6cbec under the bentleyid tenant (then we add "bentley" to
+    # those gates for two-way). Ships login+read now; two-way is live-test
+    # gated. api_base = emea.bff.cariad.digital (Audi-like BFF).
     name="bentley",
-    client_id="PLACEHOLDER-bentley-tester-please-confirm@apps_vw-dilab_com",
-    redirect_uri="mybentley://oauth-callback",
+    client_id="09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
+    redirect_uri="mybentleyapp:///",
     user_agent="MyBentley/1.0.0 Android",
     api_base="https://emea.bff.cariad.digital",
     # Scope inherited from VW EU + Audi pattern; tester may need to
@@ -259,6 +255,8 @@ BRANDS: dict[str, BrandConfig] = {
     "cupra":         BRAND_CUPRA,
     "volkswagen_na": BRAND_VW_NA_MODEL,
     "porsche":       BRAND_PORSCHE,
+    # v2.14.11 — Bentley wired (login+read; runs on the Audi IDK client/tenant).
+    "bentley":       BRAND_BENTLEY,
 }
 
 
