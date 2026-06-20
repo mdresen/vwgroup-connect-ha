@@ -38,6 +38,24 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a1] - 2026-06-20
+
+> **Alpha / pre-release** — ships the latest reverse-engineering findings for live testing. Expect rough edges; please report what you see.
+
+### Added
+
+- **Bentley is now a selectable brand (login + read).** My Bentley runs on the same backend as Audi, so it slots straight in. Two-way (commands) for Bentley is a follow-up.
+- **Login resilience for Škoda, SEAT and CUPRA.** If the app's login key ever gets rotated by the manufacturer, the integration now has spare keys to fall back to automatically — so a rotation doesn't lock you out.
+- **VW Group app-atlas research** in `docs/research/` — a catalogue of every brand app's login scheme, plus the discovery of a durable, refreshable login path for Volkswagen that gets past the new app-attestation wall. A local test tool (`scripts/mbb_dag_test.py`) lets you verify the VW path against your own account via a confirmation link (your credentials stay in your browser; it never prints tokens).
+
+### Changed
+
+- **Project relicensed to GNU AGPL v3.0-or-later** (was Apache-2.0). Forks must stay open-source under the same license. See [`ATTRIBUTION.md`](ATTRIBUTION.md) for the attribution + naming terms, and consider supporting the project via GitHub Sponsors.
+
+### Fixed
+
+- The advanced OLA User-Agent override for SEAT/CUPRA is no longer silently overwritten, so it actually applies now.
+
 ## [2.14.10] - 2026-06-18
 
 ### Fixed
