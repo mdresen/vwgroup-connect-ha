@@ -1219,29 +1219,31 @@ class VWEUClient(CariadBaseClient):
             MBB_VSR_FIELD_TANK_PCT,
             MBB_VSR_FIELD_TOTAL_RANGE_KM,
             build_mbb_vsr_status_url,
+            mbb_vsr_field_ids as _mbb_vsr_field_ids,
             parse_mbb_vsr_field,
         )
 
         d = VehicleData(vin=vin)
         read_base = await self._mbb_resolve_read_base(vin)
         country = self._mbb_country_from_id_token() or "DE"
+        host_label = read_base.split("//")[-1].split("/")[0]
         url = build_mbb_vsr_status_url(read_base, self._brand.name, country, vin)
-        _LOGGER.debug(
-            "MBB VSR status GET → %s (vin ***%s)",
-            url.replace(vin, f"***{vin[-6:]}"), vin[-6:],
+        _LOGGER.info(
+            "MBB VSR status GET → host=%s country=%s (vin ***%s)",
+            host_label, country, vin[-6:],
         )
         try:
             resp = await self._mbb_get(url)
         except APIError as err:
             _LOGGER.warning(
-                "MBB VSR read for ***%s → HTTP %s: %s — status unavailable",
-                vin[-6:], err.status, str(err.body)[:160],
+                "MBB VSR read ***%s via %s/%s → HTTP %s: %s",
+                vin[-6:], host_label, country, err.status, str(err.body)[:200],
             )
             return d
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "MBB VSR read failed for ***%s: %s — status unavailable",
-                vin[-6:], type(err).__name__,
+                "MBB VSR read failed for ***%s (%s/%s): %s",
+                vin[-6:], host_label, country, type(err).__name__,
             )
             return d
 
@@ -1254,6 +1256,33 @@ class VWEUClient(CariadBaseClient):
         adblue = safe_int(parse_mbb_vsr_field(resp, MBB_VSR_FIELD_ADBLUE_RANGE_KM))
         if adblue is not None:
             d.adblue_range_km = adblue
+
+        # Diagnostics: a 200 with an unexpected shape (or a car that hasn't
+        # reported) leaves every field None. Surface the actual envelope so the
+        # next round can map the real field IDs instead of guessing — list the
+        # field IDs the car DID return (capped), or the top-level keys if the
+        # StoredVehicleDataResponse envelope is missing entirely.
+        mapped = [v for v in (tank, rng, adblue) if v is not None]
+        if not mapped:
+            field_ids = _mbb_vsr_field_ids(resp)
+            if field_ids:
+                _LOGGER.warning(
+                    "MBB VSR ***%s via %s/%s → HTTP 200 but none of the mapped "
+                    "fields were present. Field IDs the car returned: %s",
+                    vin[-6:], host_label, country, ", ".join(field_ids[:40]),
+                )
+            else:
+                _LOGGER.warning(
+                    "MBB VSR ***%s via %s/%s → HTTP 200 but no StoredVehicleData "
+                    "fields. Envelope top-level keys: %s",
+                    vin[-6:], host_label, country,
+                    list(resp.keys())[:10] if isinstance(resp, dict) else type(resp).__name__,
+                )
+        else:
+            _LOGGER.info(
+                "MBB VSR ***%s → mapped %d field(s): fuel=%s range=%s adblue=%s",
+                vin[-6:], len(mapped), tank, rng, adblue,
+            )
         return d
 
     async def _command_rlu_mbb(

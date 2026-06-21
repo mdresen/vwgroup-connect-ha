@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a5] - 2026-06-21
+
+> **Alpha / pre-release** — diagnostics build. a4 got the car to appear via the VIN; now the status read returns nothing, so this surfaces exactly why. No re-add needed — just update and restart.
+
+### Changed
+
+- **MBB status read now logs exactly what the server returns.** Your Golf GTE shows up but all sensors are "unknown" — to pin down whether the status endpoint rejects the token, returns an empty body, or returns data in a shape we don't yet map, the read now logs the host/country it used and, on an empty result, the exact field IDs (or envelope keys) the car returned. This is the same diagnostic approach that pinned the garage issue in one step.
+
 ## [2.15.0a4] - 2026-06-21
 
 > **Alpha / pre-release** — second live-test follow-up. The diagnostics from a3 pinned the exact blocker, and this fixes it.

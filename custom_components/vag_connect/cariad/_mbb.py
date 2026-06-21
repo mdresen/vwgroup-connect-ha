@@ -342,6 +342,38 @@ def parse_mbb_vsr_field(response: dict | None, field_id: str) -> str | None:
     return None
 
 
+def mbb_vsr_field_ids(response: dict | None) -> list[str]:
+    """Return every field ``id`` present in a MBB VSR response (diagnostics).
+
+    Used to discover which field IDs a given car actually publishes, so the
+    parser can be extended to map them. Returns [] for an unexpected shape.
+    """
+    ids: list[str] = []
+    if not isinstance(response, dict):
+        return ids
+    svd = response.get("StoredVehicleDataResponse")
+    if not isinstance(svd, dict):
+        return ids
+    vehicle_data = svd.get("vehicleData")
+    if not isinstance(vehicle_data, dict):
+        return ids
+    data_groups = vehicle_data.get("data")
+    if not isinstance(data_groups, list):
+        return ids
+    for group in data_groups:
+        if not isinstance(group, dict):
+            continue
+        fields = group.get("field")
+        if not isinstance(fields, list):
+            continue
+        for f in fields:
+            if isinstance(f, dict):
+                fid = f.get("id")
+                if isinstance(fid, str):
+                    ids.append(fid)
+    return ids
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # v2.15.0 — MBB S-PIN SecToken + RLU lock/unlock (Phase 2 two-way payoff)
 # ─────────────────────────────────────────────────────────────────────────────
