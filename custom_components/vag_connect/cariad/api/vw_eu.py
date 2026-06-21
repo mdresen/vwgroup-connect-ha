@@ -344,6 +344,11 @@ class VWEUClient(CariadBaseClient):
         method returns an empty list so the calling service never
         raises into the polling loop.
         """
+        # v2.15.0 — durable MBB tenants have no CARIAD-BFF POI access; never
+        # send the MBB bearer to the BFF host. POI lookup is unsupported on
+        # MBB, so return an empty list (the documented no-result shape).
+        if self._tokens and self._tokens.strategy == "mbb":
+            return []
         url = f"{_BASE}/charging-stations/v1/locations"
         params: dict[str, Any] = {
             "latitude": str(latitude),
@@ -750,6 +755,14 @@ class VWEUClient(CariadBaseClient):
             is_cariad_wrapper_404,
         )
 
+        # v2.15.0 — durable MBB strategy: never touch the CARIAD BFF. Go
+        # straight to the MBB wake (which uses the MBB-headered poster), so
+        # the bearer never leaks to the dead BFF host. Mirrors the gates on
+        # get_status / command_lock / command_unlock.
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_wake_mbb(vin)
+            return
+
         # v2.1.0 — ``_home_region_cache`` is now eager-init in __init__
         # (mypy strict). MBBBackendCache stays lazy because it's only
         # touched after the first wrapper-404 detection.
@@ -820,7 +833,15 @@ class VWEUClient(CariadBaseClient):
             url.replace(vin, f"***{vin[-6:]}"),
             vin[-6:],
         )
-        await self._post(url, json={})
+        # v2.15.0 — for the durable MBB strategy the wake must carry the
+        # registered X-Client-Id / X-MbbUserId headers (the MBB backend 403s
+        # without them), so use the dedicated MBB poster. The legacy IDK-token
+        # wrapper-404 fallback path (non-mbb entries on older MIB3 cars) keeps
+        # its original ``self._post`` behaviour.
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._mbb_post_json(url, {})
+        else:
+            await self._post(url, json={})
 
     async def _maybe_fill_from_mbb_vsr(self, vin: str, d: VehicleData) -> None:
         """v1.25.0 PR-G — MBB VSR Phase 2 read-side fallback.
@@ -955,10 +976,21 @@ class VWEUClient(CariadBaseClient):
             headers.update(extra)
         return headers
 
-    async def _mbb_get(self, url: str) -> dict[str, Any]:
-        """GET an MBB endpoint with the MBB bearer + registered X-Client-Id."""
+    async def _mbb_get(self, url: str, *, _retry: bool = True) -> dict[str, Any]:
+        """GET an MBB endpoint with the MBB bearer + registered X-Client-Id.
+
+        On a 401 (expired MBB bearer) refresh ONCE via the durable MBB
+        refresh branch and retry. These requests bypass ``base._request``
+        (the usual 401→refresh trigger), so this is the only place the
+        durable MBB refresh fires from the read/command path. The storm
+        guard in ``_refresh_tokens`` bounds retries; ``_retry=False`` on
+        the second attempt prevents recursion.
+        """
         async with self._session.get(url, headers=self._mbb_headers()) as resp:
             text = await resp.text()
+            if resp.status == 401 and _retry:
+                await self._refresh_tokens()
+                return await self._mbb_get(url, _retry=False)
             if resp.status >= 400:
                 raise APIError(resp.status, url, body=text)
             if not text:
@@ -969,11 +1001,19 @@ class VWEUClient(CariadBaseClient):
                 return {}
             return loaded if isinstance(loaded, dict) else {}
 
-    async def _mbb_post_json(self, url: str, body: dict[str, Any]) -> dict[str, Any]:
-        """POST a JSON body to an MBB endpoint (leg-2 SPIN completion)."""
+    async def _mbb_post_json(
+        self, url: str, body: dict[str, Any], *, _retry: bool = True
+    ) -> dict[str, Any]:
+        """POST a JSON body to an MBB endpoint (leg-2 SPIN completion).
+
+        Refreshes once on a 401 and retries (see ``_mbb_get``).
+        """
         headers = self._mbb_headers({"Content-Type": "application/json"})
         async with self._session.post(url, json=body, headers=headers) as resp:
             text = await resp.text()
+            if resp.status == 401 and _retry:
+                await self._refresh_tokens()
+                return await self._mbb_post_json(url, body, _retry=False)
             if resp.status >= 400:
                 raise APIError(resp.status, url, body=text)
             if not text:
@@ -984,13 +1024,17 @@ class VWEUClient(CariadBaseClient):
                 return {}
             return loaded if isinstance(loaded, dict) else {}
 
-    async def _mbb_post_rlu(self, url: str, sec_token: str) -> dict[str, Any]:
+    async def _mbb_post_rlu(
+        self, url: str, sec_token: str, *, _retry: bool = True
+    ) -> dict[str, Any]:
         """POST the RLU lock/unlock action — EMPTY body, x-securityToken header.
 
         The lock/unlock verb is encoded in the URL path tail, NOT a body
         (the ``<rluAction>`` XML body is the deprecated pre-2019 variant).
         The Content-Type must still be the RemoteLockUnlock vendor type or
-        the backend 415s.
+        the backend 415s. Refreshes once on a 401 and retries (see
+        ``_mbb_get``) — but note the ``sec_token`` is action-bound, so a 401
+        here is the bearer expiring, not the sec-token (which would 403).
         """
         from .._mbb import MBB_RLU_CONTENT_TYPE  # noqa: PLC0415
 
@@ -1000,6 +1044,9 @@ class VWEUClient(CariadBaseClient):
         })
         async with self._session.post(url, data=None, headers=headers) as resp:
             text = await resp.text()
+            if resp.status == 401 and _retry:
+                await self._refresh_tokens()
+                return await self._mbb_post_rlu(url, sec_token, _retry=False)
             if resp.status >= 400:
                 raise APIError(resp.status, url, body=text)
             if not text:

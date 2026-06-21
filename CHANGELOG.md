@@ -49,6 +49,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 > ⚠️ The durable VW path needs a confirmation from your account to fully verify end-to-end on real cars — that's exactly what this alpha is for. If lock/unlock reports a failure with the doors open or the key inside the car, that's the car refusing, not a bug.
 
+### Internal (MBB hardening, pre-release review)
+
+- The MBB session now auto-refreshes when its token expires (previously the durable token could go stale after a restart and the car would show "unknown" until you re-confirmed in the browser — the whole point of "durable" is that it shouldn't).
+- Tightened token isolation: several background calls (capability/trip-stats prefetch, the field-probe pass, wake, charging-station lookup) are now skipped for MBB sessions so the MBB token is only ever sent to the MBB servers, never to the (dead, for VW) app backend.
+
 ## [2.15.0a1] - 2026-06-20
 
 > **Alpha / pre-release** — ships the latest reverse-engineering findings for live testing. Expect rough edges; please report what you see.

@@ -2042,7 +2042,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         portal_strategy = getattr(
             getattr(self._cariad_client, "_tokens", None), "strategy", ""
         )
-        if portal_strategy in ("data_act_portal", "device_grant_portal"):
+        # v2.15.0 — the durable MBB strategy has no BFF capabilities endpoint
+        # and its bearer must not be sent to the dead CARIAD BFF host; skip it
+        # the same way the portal strategies are skipped.
+        if portal_strategy in ("data_act_portal", "device_grant_portal", "mbb"):
             return
         if not force and self.is_capabilities_cache_fresh(vin):
             return
@@ -2171,6 +2174,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception:  # noqa: BLE001
             return
         if brand not in self._TRIP_STATS_BRANDS:
+            return
+        # v2.15.0 — the durable MBB strategy reads via the legacy VSR endpoint
+        # and has no BFF trip-statistics equivalent; without this gate the
+        # brand-only check would send the MBB bearer to the dead CARIAD BFF
+        # host every poll. Skip entirely for MBB entries.
+        if getattr(
+            getattr(self._cariad_client, "_tokens", None), "strategy", ""
+        ) == "mbb":
             return
         if not hasattr(self, "_trip_stats_fetched_at"):
             self._trip_stats_fetched_at: dict[str, datetime] = {}

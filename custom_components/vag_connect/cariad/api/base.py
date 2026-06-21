@@ -876,6 +876,13 @@ class CariadBaseClient:
             return 0
         if self._tokens is None:
             return 0
+        # v2.15.0 — the durable MBB bearer must NEVER be sent to the dead/
+        # attestation-gated CARIAD BFF host. The probe pass has no per-strategy
+        # host routing (it resolves base_url_for_brand → the BFF), so skip it
+        # entirely for MBB entries. The dedicated MBB getters in the brand
+        # client carry the bearer only to the legacy MBB hosts.
+        if self._tokens.strategy == "mbb":
+            return 0
 
         # Rate-limit per VIN — never re-run within _PROBE_INTERVAL_S.
         now = time.monotonic()

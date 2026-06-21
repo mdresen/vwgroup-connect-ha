@@ -314,3 +314,77 @@ class TestBrandSegmentUnchanged:
 
     def test_audi_segment(self) -> None:
         assert _mbb.mbb_brand_segment("audi") == "Audi"
+
+
+# ── auth-isolation regression gates (review 2026-06-21) ───────────────
+#
+# These lock in the "MBB bearer never reaches the dead CARIAD BFF host"
+# invariant so a future refactor that drops a strategy gate breaks the
+# build instead of silently leaking the durable bearer. They exercise the
+# pure early-return branches only (no network).
+
+
+def _make_mbb_client():
+    """Build a VWEUClient skeleton with strategy=='mbb' and no real I/O."""
+    from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
+    from custom_components.vag_connect.cariad.models import BRAND_VW_EU, TokenSet
+
+    client = VWEUClient.__new__(VWEUClient)
+    client._brand = BRAND_VW_EU
+    client._tokens = TokenSet(
+        access_token="MBB_BEARER", refresh_token="r", id_token="", strategy="mbb",
+    )
+    client._mbb_client_id = "registered-client"
+    client._probe_disabled = False
+    return client
+
+
+class TestAuthIsolationGates:
+    @pytest.mark.asyncio
+    async def test_find_charging_stations_returns_empty_for_mbb(self) -> None:
+        """Must short-circuit to [] BEFORE building the BFF url, so the MBB
+        bearer is never sent to emea.bff.cariad.digital."""
+        client = _make_mbb_client()
+        # If the gate were missing this would try self._get (no _session) and
+        # raise; the gate returns [] without touching the network.
+        assert await client.find_charging_stations(47.0, 8.0) == []
+
+    @pytest.mark.asyncio
+    async def test_run_v3_probe_pass_skipped_for_mbb(self) -> None:
+        """The probe pass resolves the BFF host with no per-strategy routing,
+        so it must early-return 0 for an mbb entry."""
+        client = _make_mbb_client()
+        assert await client.run_v3_probe_pass("WVWZZZ000000VIN01") == 0
+
+    @pytest.mark.asyncio
+    async def test_get_status_routes_to_mbb_vsr(self) -> None:
+        """get_status must route an mbb entry to _get_status_via_mbb_vsr and
+        NEVER fall through to the BFF selectivestatus self._get."""
+        from unittest.mock import AsyncMock
+
+        client = _make_mbb_client()
+        client._website_proxy = None
+        client._eu_portal = None
+        sentinel = object()
+        client._get_status_via_mbb_vsr = AsyncMock(return_value=sentinel)
+        client._get = AsyncMock(side_effect=AssertionError("BFF self._get hit!"))
+        result = await client.get_status("WVWZZZ000000VIN01")
+        assert result is sentinel
+        client._get_status_via_mbb_vsr.assert_awaited_once()
+        client._get.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_command_lock_routes_to_mbb_rlu(self) -> None:
+        """command_lock must route an mbb entry to the RLU SecToken flow and
+        not the BFF lock-unlock fallback path."""
+        from unittest.mock import AsyncMock
+
+        client = _make_mbb_client()
+        client._spin = "1234"
+        client._command_rlu_mbb = AsyncMock()
+        client._post_command_with_fallback_paths = AsyncMock(
+            side_effect=AssertionError("BFF command path hit!")
+        )
+        await client.command_lock("WVWZZZ000000VIN01")
+        client._command_rlu_mbb.assert_awaited_once()
+        client._post_command_with_fallback_paths.assert_not_called()
