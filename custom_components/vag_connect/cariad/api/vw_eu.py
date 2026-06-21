@@ -823,10 +823,14 @@ class VWEUClient(CariadBaseClient):
         if "cariad.digital" in read_base or "bff.cariad" in read_base:
             read_base = MBB_DEFAULT_READ_BASE
 
-        # Brand segment: Audi/VW. Country defaults to DE — most users
-        # are EU. Future enhancement: detect country from IDK token.
+        # Brand segment: Audi/VW. Country: for the durable MBB strategy use
+        # the account's own country from the id_token (CH/DE/AT…); the legacy
+        # IDK wrapper-404 path keeps the DE default.
         brand_name = self._brand.name  # 'volkswagen' or 'audi'
-        country = "DE"
+        if self._tokens and self._tokens.strategy == "mbb":
+            country = self._mbb_country_from_id_token() or "DE"
+        else:
+            country = "DE"
         url = build_mbb_wake_url(read_base, brand_name, country, vin)
         _LOGGER.debug(
             "MBB wake POST → %s (vin ***%s)",
@@ -962,11 +966,57 @@ class VWEUClient(CariadBaseClient):
         sub = claims.get("sub")
         return sub if isinstance(sub, str) else ""
 
+    def _mbb_country_from_id_token(self) -> str | None:
+        """Best-effort ISO-2 country for the MBB market segment.
+
+        The fs-car path carries a ``{country}`` market segment (DE/CH/AT…).
+        Most VW id_tokens carry a ``locale`` (e.g. ``de-CH``) or an explicit
+        ``country`` claim; we read the region from there. Returns None when
+        nothing usable is present (caller falls back to a candidate list).
+        """
+        tok = self._tokens.id_token if self._tokens else ""
+        if not tok:
+            return None
+        try:
+            payload = tok.split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+        except (ValueError, IndexError, json.JSONDecodeError):
+            return None
+        for key in ("country", "countryCode", "market"):
+            val = claims.get(key)
+            if isinstance(val, str) and len(val) == 2:
+                return val.upper()
+        locale = claims.get("locale")
+        if isinstance(locale, str) and "-" in locale:
+            region = locale.split("-")[-1]
+            if len(region) == 2:
+                return region.upper()
+        return None
+
+    def _mbb_app_identity(self) -> tuple[str, str]:
+        """``(X-App-Name, X-App-Version)`` for the active brand.
+
+        The fs-car / usermanagement endpoints gate on the app-identification
+        headers (grounded in the We Connect / myAudi app + the Bruno legacy
+        fixtures). Audi uses ``myAudi``; everything else the VW We Connect id.
+        """
+        if self._brand.name == "audi":
+            return "myAudi", "4.24.0"
+        return "Volkswagen", "3.51.1"
+
     def _mbb_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
+        app_name, app_version = self._mbb_app_identity()
         headers = {
             "Authorization": f"Bearer {self._access_token}",
             "X-Client-Id": self._mbb_client_id,
             "Accept": "application/json",
+            # The MBB fs-car endpoints reject calls without the app-identity
+            # headers (usermanagement / rolesrights are picky); send them on
+            # every MBB request so reads, enumeration and commands all carry
+            # them. Grounded in the We Connect app + the mbb_legacy fixtures.
+            "X-App-Name": app_name,
+            "X-App-Version": app_version,
             "User-Agent": "okhttp/3.14.9",
         }
         uid = self._mbb_user_id()
@@ -1075,35 +1125,75 @@ class VWEUClient(CariadBaseClient):
     async def _get_vehicles_via_mbb(self) -> list[str]:
         """Enumerate paired VINs via the legacy MBB usermanagement endpoint.
 
-        NOTE: the garage-enumeration shape needs live confirmation against a
-        real VW EU MBB account. On failure/empty we return [] and log a
-        clear hint rather than falling through to the dead BFF.
+        The account-level pairing call has no per-VIN homeRegion yet, and the
+        ``{country}`` market segment varies by account (CH/DE/AT…). We try the
+        id_token's country first, then common fallbacks, across the two known
+        hosts, and return on the first candidate that yields VINs. Every
+        candidate's HTTP status is logged so a persistent failure pinpoints the
+        endpoint instead of a vague "APIError". On total failure we return []
+        (never falling through to the dead BFF).
         """
         from .._mbb import (  # noqa: PLC0415
             MBB_DEFAULT_READ_BASE,
+            MBB_SETTER_BASE,
             build_mbb_vehicles_url,
             parse_mbb_vehicle_vins,
         )
 
-        url = build_mbb_vehicles_url(MBB_DEFAULT_READ_BASE, self._brand.name, "DE")
-        try:
-            resp = await self._mbb_get(url)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning(
-                "MBB garage enumeration failed (%s) — no vehicles returned. "
-                "If this persists the MBB usermanagement endpoint shape may "
-                "differ for your account.", type(err).__name__,
-            )
-            return []
-        vins = parse_mbb_vehicle_vins(resp)
         self._vehicle_metadata = {}
-        if not vins:
-            _LOGGER.warning(
-                "MBB login OK but the usermanagement endpoint returned no "
-                "paired vehicles. Confirm the car is paired in the We Connect "
-                "app and that the MBB account has it.",
-            )
-        return vins
+
+        # Candidate market segments: the account's own country first.
+        countries: list[str] = []
+        tok_country = self._mbb_country_from_id_token()
+        if tok_country:
+            countries.append(tok_country)
+        for c in ("CH", "DE", "AT"):
+            if c not in countries:
+                countries.append(c)
+        # Candidate hosts: the standard fs-car read host + the setter host.
+        hosts = [MBB_DEFAULT_READ_BASE, MBB_SETTER_BASE]
+
+        last_status: int | str = "?"
+        for host in hosts:
+            host_label = host.split("//")[-1].split("/")[0]
+            for country in countries:
+                url = build_mbb_vehicles_url(host, self._brand.name, country)
+                try:
+                    resp = await self._mbb_get(url)
+                except APIError as err:
+                    last_status = err.status
+                    _LOGGER.warning(
+                        "MBB enum %s /%s → HTTP %s: %s",
+                        host_label, country, err.status, str(err.body)[:160],
+                    )
+                    continue
+                except Exception as err:  # noqa: BLE001
+                    last_status = type(err).__name__
+                    _LOGGER.warning(
+                        "MBB enum %s /%s → %s", host_label, country,
+                        type(err).__name__,
+                    )
+                    continue
+                vins = parse_mbb_vehicle_vins(resp)
+                if vins:
+                    _LOGGER.info(
+                        "MBB enumeration OK via %s /%s → %d vehicle(s)",
+                        host_label, country, len(vins),
+                    )
+                    return vins
+                _LOGGER.warning(
+                    "MBB enum %s /%s → HTTP 200 but no paired vehicles",
+                    host_label, country,
+                )
+
+        _LOGGER.warning(
+            "MBB garage enumeration failed on all host/country candidates "
+            "(last status %s). The usermanagement endpoint shape or market "
+            "segment may differ for your account — share the per-candidate "
+            "HTTP statuses above so the endpoint can be pinned down.",
+            last_status,
+        )
+        return []
 
     async def _get_status_via_mbb_vsr(self, vin: str) -> VehicleData:
         """Read vehicle status via the durable MBB VSR endpoint.
@@ -1122,13 +1212,20 @@ class VWEUClient(CariadBaseClient):
 
         d = VehicleData(vin=vin)
         read_base = await self._mbb_resolve_read_base(vin)
-        url = build_mbb_vsr_status_url(read_base, self._brand.name, "DE", vin)
+        country = self._mbb_country_from_id_token() or "DE"
+        url = build_mbb_vsr_status_url(read_base, self._brand.name, country, vin)
         _LOGGER.debug(
             "MBB VSR status GET → %s (vin ***%s)",
             url.replace(vin, f"***{vin[-6:]}"), vin[-6:],
         )
         try:
             resp = await self._mbb_get(url)
+        except APIError as err:
+            _LOGGER.warning(
+                "MBB VSR read for ***%s → HTTP %s: %s — status unavailable",
+                vin[-6:], err.status, str(err.body)[:160],
+            )
+            return d
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
                 "MBB VSR read failed for ***%s: %s — status unavailable",

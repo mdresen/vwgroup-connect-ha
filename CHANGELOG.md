@@ -38,6 +38,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a3] - 2026-06-21
+
+> **Alpha / pre-release** — follow-up to a2 from the first live test. The MBB durable login itself worked end-to-end (browser confirm → durable token); the only blocker was finding your cars afterwards.
+
+### Fixed
+
+- **MBB: the car list is now looked up with the right country and headers.** On the first live test the durable VW login succeeded but the integration found no vehicles, because the account-list call was hardcoded to Germany (`DE`) and was missing the app-identification headers the VW servers expect. It now reads your account's country from the login token (e.g. `CH` for Switzerland), sends the `Volkswagen`/`myAudi` app headers on every MBB call, and tries the known server/country combinations until your cars appear.
+- **Better diagnostics:** if the car list still comes back empty, the log now shows the exact HTTP status for each server/country it tried (instead of a vague "APIError"), so the endpoint can be pinned down quickly.
+
 ## [2.15.0a2] - 2026-06-21
 
 > **Alpha / pre-release** — please live-test and report back. Expect rough edges.
