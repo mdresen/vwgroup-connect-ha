@@ -9,6 +9,12 @@ CONF_BRAND                    = "brand"
 CONF_USERNAME                 = "username"
 CONF_PASSWORD                 = "password"
 CONF_SPIN                     = "spin"
+# v2.15.0 — durable MBB strategy: optional manual VIN(s). The MBB
+# fal-scoped bearer cannot call the account-level usermanagement garage
+# endpoint (403 RS.security.9007 XID_APP_VW), so the user supplies the VIN
+# directly. Comma/space-separated for multiple cars. Vehicle-level reads +
+# commands (VSR / rlu) work fine with the fal token.
+CONF_MBB_VINS                 = "mbb_vins"
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_FORCE_ACCESS             = "force_enable_access"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"

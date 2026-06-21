@@ -374,6 +374,21 @@ class TestAuthIsolationGates:
         client._get.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_get_vehicles_uses_manual_vins_without_enumeration(self) -> None:
+        """The fal-scoped MBB token can't list the garage (usermanagement
+        403s), so a user-supplied VIN must be returned directly without any
+        network enumeration call."""
+        from unittest.mock import AsyncMock
+
+        client = _make_mbb_client()
+        client._mbb_manual_vins = ["WVWZZZ1KZAW123456", "WAUZZZ8V0KA000000"]
+        # If enumeration were attempted it would hit _mbb_get (no _session).
+        client._mbb_get = AsyncMock(side_effect=AssertionError("enum hit!"))
+        vins = await client._get_vehicles_via_mbb()
+        assert vins == ["WVWZZZ1KZAW123456", "WAUZZZ8V0KA000000"]
+        client._mbb_get.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_command_lock_routes_to_mbb_rlu(self) -> None:
         """command_lock must route an mbb entry to the RLU SecToken flow and
         not the BFF lock-unlock fallback path."""

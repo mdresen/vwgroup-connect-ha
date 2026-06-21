@@ -639,6 +639,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self._cariad_client._mbb_client_id = self.entry.data.get(
                     "mbb_client_id", ""
                 )
+                # User-supplied VIN(s) — the fal-scoped MBB bearer can't list
+                # the garage, so get_vehicles returns these directly.
+                from .const import CONF_MBB_VINS  # noqa: PLC0415
+                mbb_vins = self.entry.data.get(CONF_MBB_VINS) or []
+                if isinstance(mbb_vins, str):
+                    mbb_vins = [
+                        v.strip().upper()
+                        for v in mbb_vins.replace(",", " ").split()
+                        if v.strip()
+                    ]
+                self._cariad_client._mbb_manual_vins = list(mbb_vins)
         # Fire-and-forget save callback — never blocks API path.
         self._cariad_client.on_tokens_changed = self._token_storage.save
 

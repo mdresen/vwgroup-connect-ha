@@ -63,13 +63,15 @@
       },
       "mbb_login": {
         "title": "Volkswagen EU — Durable Login (MBB, ALPHA)",
-        "description": "**Experimental, opt-in — Volkswagen EU only.** A browser confirmation (no password stored in Home Assistant) mints a durable, refreshable token via the legacy MBB backend. Unlike the read-only portal, this survives restarts and supports two-way remote lock/unlock. Add your S-PIN below to enable lock/unlock. On the next screen you will see a short code and a URL to open on any device.",
+        "description": "**Experimental, opt-in — Volkswagen EU only.** A browser confirmation (no password stored in Home Assistant) mints a durable, refreshable token via the legacy MBB backend. Unlike the read-only portal, this survives restarts and supports two-way remote lock/unlock. **Enter your VIN** (the MBB token can't list your garage by itself), and add your S-PIN to enable lock/unlock. On the next screen you will see a short code and a URL to open on any device.",
         "data": {
+          "mbb_vins": "VIN (vehicle identification number)",
           "spin": "S-PIN",
           "scan_interval": "Update Interval",
           "force_enable_access": "Force Door Status"
         },
         "data_description": {
+          "mbb_vins": "Your 17-character VIN (on the windscreen / registration). Multiple cars: separate with a comma. Required — the durable MBB token works per-VIN but can't enumerate your garage.",
           "spin": "Optional 4-digit Security-PIN — required for remote lock/unlock.",
           "scan_interval": "Minutes between vehicle data polls.",
           "force_enable_access": "Force door-status entities even when the vehicle reports the data missing."

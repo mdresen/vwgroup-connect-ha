@@ -38,6 +38,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a4] - 2026-06-21
+
+> **Alpha / pre-release** — second live-test follow-up. The diagnostics from a3 pinned the exact blocker, and this fixes it.
+
+### Fixed
+
+- **MBB: you now enter your VIN directly, and the car finally appears.** The a3 diagnostics showed the durable VW token is allowed to read your *car* but not to list your *account's garage* (the server replied `403 — no permission for systemId XID_APP_VW`). That's expected for this token type — so the MBB login now has a **VIN field**: enter your 17-character VIN (windscreen / registration; comma-separate multiple cars) and the integration uses it directly. Everything car-level — status, and lock/unlock with your S-PIN — works with this token; only the garage *listing* didn't, and the VIN field replaces it.
+
+> ℹ️ **If you already added the MBB login on a2/a3:** delete that entry and add it again with the new "Volkswagen EU — Durable Login (MBB)" option so you can enter the VIN. The browser confirm is quick.
+
 ## [2.15.0a3] - 2026-06-21
 
 > **Alpha / pre-release** — follow-up to a2 from the first live test. The MBB durable login itself worked end-to-end (browser confirm → durable token); the only blocker was finding your cars afterwards.

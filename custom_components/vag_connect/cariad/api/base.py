@@ -147,6 +147,11 @@ class CariadBaseClient:
         # every MBB token refresh + VSR read + RLU command (a mismatch 403s).
         # Empty for every non-MBB entry → no behaviour change.
         self._mbb_client_id: str = ""
+        # v2.15.0 — user-supplied VIN(s) for the MBB strategy. The fal-scoped
+        # MBB bearer can't list the account garage (usermanagement 403s), so
+        # the config flow lets the user enter their VIN(s) directly; these are
+        # returned by get_vehicles instead of the dead enumeration call.
+        self._mbb_manual_vins: list[str] = []
         self._image_data: dict[str, VehicleImageData] = {}
         self._refresh_lock: asyncio.Lock | None = None
         # Sliding window of token refresh attempt timestamps (monotonic seconds).

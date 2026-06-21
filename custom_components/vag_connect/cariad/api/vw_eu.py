@@ -1135,14 +1135,29 @@ class VWEUClient(CariadBaseClient):
         """
         from .._mbb import (  # noqa: PLC0415
             MBB_DEFAULT_READ_BASE,
-            MBB_SETTER_BASE,
             build_mbb_vehicles_url,
             parse_mbb_vehicle_vins,
         )
 
         self._vehicle_metadata = {}
 
-        # Candidate market segments: the account's own country first.
+        # Primary path: user-supplied VIN(s). The durable MBB bearer is
+        # ``sc2:fal``-scoped (vehicle function/status layer) and is REJECTED by
+        # the account-level usermanagement garage endpoint (live-confirmed
+        # 2026-06-21: HTTP 403 ``RS.security.9007`` "no permission for systemId
+        # XID_APP_VW"). Vehicle-level reads/commands work with this token, so
+        # the user enters the VIN directly in the MBB login and we use it.
+        manual = [v for v in getattr(self, "_mbb_manual_vins", []) if v]
+        if manual:
+            _LOGGER.info(
+                "MBB: using %d user-supplied VIN(s) (garage enumeration is "
+                "not available to the fal-scoped MBB token).", len(manual),
+            )
+            return manual
+
+        # Fallback (best-effort): try the usermanagement endpoint anyway, in
+        # case some accounts/markets DO grant it. Single host — ``mal-1a`` is
+        # /api-only and 404s for /fs-car (live-confirmed). Log each status.
         countries: list[str] = []
         tok_country = self._mbb_country_from_id_token()
         if tok_country:
@@ -1150,47 +1165,44 @@ class VWEUClient(CariadBaseClient):
         for c in ("CH", "DE", "AT"):
             if c not in countries:
                 countries.append(c)
-        # Candidate hosts: the standard fs-car read host + the setter host.
-        hosts = [MBB_DEFAULT_READ_BASE, MBB_SETTER_BASE]
 
+        host = MBB_DEFAULT_READ_BASE
+        host_label = host.split("//")[-1].split("/")[0]
         last_status: int | str = "?"
-        for host in hosts:
-            host_label = host.split("//")[-1].split("/")[0]
-            for country in countries:
-                url = build_mbb_vehicles_url(host, self._brand.name, country)
-                try:
-                    resp = await self._mbb_get(url)
-                except APIError as err:
-                    last_status = err.status
-                    _LOGGER.warning(
-                        "MBB enum %s /%s → HTTP %s: %s",
-                        host_label, country, err.status, str(err.body)[:160],
-                    )
-                    continue
-                except Exception as err:  # noqa: BLE001
-                    last_status = type(err).__name__
-                    _LOGGER.warning(
-                        "MBB enum %s /%s → %s", host_label, country,
-                        type(err).__name__,
-                    )
-                    continue
-                vins = parse_mbb_vehicle_vins(resp)
-                if vins:
-                    _LOGGER.info(
-                        "MBB enumeration OK via %s /%s → %d vehicle(s)",
-                        host_label, country, len(vins),
-                    )
-                    return vins
+        for country in countries:
+            url = build_mbb_vehicles_url(host, self._brand.name, country)
+            try:
+                resp = await self._mbb_get(url)
+            except APIError as err:
+                last_status = err.status
                 _LOGGER.warning(
-                    "MBB enum %s /%s → HTTP 200 but no paired vehicles",
-                    host_label, country,
+                    "MBB enum %s /%s → HTTP %s: %s",
+                    host_label, country, err.status, str(err.body)[:160],
                 )
+                continue
+            except Exception as err:  # noqa: BLE001
+                last_status = type(err).__name__
+                _LOGGER.warning(
+                    "MBB enum %s /%s → %s", host_label, country,
+                    type(err).__name__,
+                )
+                continue
+            vins = parse_mbb_vehicle_vins(resp)
+            if vins:
+                _LOGGER.info(
+                    "MBB enumeration OK via %s /%s → %d vehicle(s)",
+                    host_label, country, len(vins),
+                )
+                return vins
+            _LOGGER.warning(
+                "MBB enum %s /%s → HTTP 200 but no paired vehicles",
+                host_label, country,
+            )
 
         _LOGGER.warning(
-            "MBB garage enumeration failed on all host/country candidates "
-            "(last status %s). The usermanagement endpoint shape or market "
-            "segment may differ for your account — share the per-candidate "
-            "HTTP statuses above so the endpoint can be pinned down.",
+            "MBB: no VIN available (enumeration last status %s, and no VIN was "
+            "entered). Reconfigure the MBB login and enter your VIN — the "
+            "durable token can't list the garage but works per-VIN.",
             last_status,
         )
         return []

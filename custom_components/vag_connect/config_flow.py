@@ -44,6 +44,7 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_ACCESS,
     CONF_FORCE_PPE_CLIMATE,
+    CONF_MBB_VINS,
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
@@ -655,6 +656,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             step_id="mbb_login",
             data_schema=vol.Schema({
                 vol.Optional(
+                    CONF_MBB_VINS, default=suggested.get(CONF_MBB_VINS, ""),
+                ): TextSelector(TextSelectorConfig()),
+                vol.Optional(
                     CONF_SPIN, default=suggested.get(CONF_SPIN, ""),
                 ): _SPIN_SELECTOR,
                 vol.Optional(
@@ -1133,6 +1137,17 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 "strategy": "mbb",
             }
             entry_data["mbb_client_id"] = self._dag_mbb_client_id
+            # v2.15.0a4 — the fal-scoped MBB bearer can't list the garage
+            # (usermanagement 403s with XID_APP_VW), so persist the VIN(s)
+            # the user supplied. Normalise to an uppercased list, splitting
+            # on commas/whitespace and keeping plausible 11–17-char VINs.
+            raw_vins = str(self._dag_user_input.get(CONF_MBB_VINS, "") or "")
+            vins = [
+                v.strip().upper()
+                for v in raw_vins.replace(",", " ").split()
+                if 11 <= len(v.strip()) <= 17
+            ]
+            entry_data[CONF_MBB_VINS] = vins
             return self.async_create_entry(
                 title=f"Volkswagen EU (MBB) — {self._dag_user_id[:8]}…",
                 data=entry_data,
