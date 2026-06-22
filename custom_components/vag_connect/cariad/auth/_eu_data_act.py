@@ -273,6 +273,106 @@ def _parse_ts(value: Any) -> float | None:
     return None
 
 
+# v2.15.0a11 — data-quality hardening (EU Data Act read path).
+# Sentinel markers the portal ships for "no reading": uint16 / int32 / uint32
+# max. A raw 65535 in an SoC/range field is "unknown", not a real value —
+# keeping it poisons HA long-term statistics irreversibly.
+_GLOBAL_SENTINELS: frozenset[float] = frozenset(
+    {65535.0, 2147483647.0, 4294967295.0}
+)
+
+# Field-specific sentinels — TABLE-DRIVEN (case-insensitive substring on the
+# flattened field name) so the rule set stays extensible instead of hardcoded.
+_FIELD_SENTINELS: tuple[tuple[str, frozenset[float]], ...] = (
+    ("remaining_charging_time", frozenset({-1.0})),
+    ("remainingchargingtime", frozenset({-1.0})),
+    ("tyre_pressure_actual", frozenset({0.0, 1.0})),  # 0=unsupported 1=invalid
+    ("tirepressure", frozenset({0.0, 1.0})),
+)
+
+# Monotonic fields must never regress: an out-of-order OLDER snapshot must not
+# lower a higher reading — pick the larger numeric value, not just latest-ts.
+_MONOTONIC_HINTS: tuple[str, ...] = (
+    "odometer", "mileage", "kilometre", "kilometer", "total_distance",
+)
+
+# Field names whose VALUE is itself the dataset capture timestamp.
+_CAPTURED_NAME_HINTS: tuple[str, ...] = (
+    "car_captured", "carcaptured", "captured_timestamp", "capturedtimestamp",
+    "captured_time", "capturedtime", "captured_utc",
+)
+
+
+def _num(value: Any) -> float | None:
+    """Coerce a leaf value to float for sentinel/monotonic checks, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip().replace(",", "."))
+        except (ValueError, AttributeError):
+            return None
+    return None
+
+
+def _is_sentinel(name: str, value: Any) -> bool:
+    """True if *value* is a "no reading" sentinel for field *name*."""
+    n = _num(value)
+    if n is None:
+        return False
+    if n in _GLOBAL_SENTINELS:
+        return True
+    low = name.lower()
+    return any(needle in low and n in sents for needle, sents in _FIELD_SENTINELS)
+
+
+def _is_monotonic(name: str) -> bool:
+    low = name.lower()
+    return any(h in low for h in _MONOTONIC_HINTS)
+
+
+def _dataset_captured_ts(payload: Any) -> float | None:
+    """Max capture timestamp across the dataset.
+
+    A leaf whose NAME marks it a capture time and whose VALUE is the timestamp.
+    Used as the default freshness floor for value-fields that carry no sibling
+    timestamp, so even bare ``{soc: 80}`` fields rank by dataset freshness rather
+    than collapsing to ``-inf`` (last-in-array).
+    """
+    best: float | None = None
+
+    def consider(raw: Any) -> None:
+        nonlocal best
+        ts = _parse_ts(raw)
+        if ts is not None and (best is None or ts > best):
+            best = ts
+
+    def scan(node: Any) -> None:
+        if isinstance(node, dict):
+            fname = node.get("dataFieldName") or node.get("name")
+            if (
+                isinstance(fname, str)
+                and "value" in node
+                and any(h in fname.lower() for h in _CAPTURED_NAME_HINTS)
+            ):
+                consider(node.get("value"))
+            for k, val in node.items():
+                if isinstance(k, str) and any(
+                    h in k.lower() for h in _CAPTURED_NAME_HINTS
+                ):
+                    consider(val)
+                if isinstance(val, (dict, list)):
+                    scan(val)
+        elif isinstance(node, list):
+            for item in node:
+                scan(item)
+
+    scan(payload)
+    return best
+
+
 def _walk_fields(payload: Any) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -293,16 +393,29 @@ def _walk_fields(payload: Any) -> dict[str, str]:
     """
     # name -> (value_str, ts) where ts is float (-inf when unknown)
     best: dict[str, tuple[str, float]] = {}
+    dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
 
     def add(name: Any, value: Any, ts: float | None) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
         if not isinstance(value, (str, int, float, bool)):
             return
+        if _is_sentinel(name, value):  # a11: drop uint-max / field "no reading"
+            _LOGGER.debug("EU Data Act: dropped sentinel %s=%s", name, value)
+            return
         cand = ts if ts is not None else float("-inf")
         prev = best.get(name)
+        if prev is None:
+            best[name] = (str(value), cand)
+            return
+        if _is_monotonic(name):  # a11: odometer/mileage must never regress
+            new_n, old_n = _num(value), _num(prev[0])
+            if new_n is not None and old_n is not None:
+                if new_n >= old_n:
+                    best[name] = (str(value), max(cand, prev[1]))
+                return
         # latest-wins; >= so a later array entry replaces an equal/unknown ts.
-        if prev is None or cand >= prev[1]:
+        if cand >= prev[1]:
             best[name] = (str(value), cand)
 
     def walk(node: Any, prefix: str = "", node_ts: float | None = None) -> None:
@@ -331,7 +444,7 @@ def _walk_fields(payload: Any) -> dict[str, str]:
             for item in node:
                 walk(item, prefix, node_ts)
 
-    walk(payload)
+    walk(payload, node_ts=dataset_ts)  # a11: bare fields inherit dataset freshness
     return {k: v[0] for k, v in best.items()}
 
 

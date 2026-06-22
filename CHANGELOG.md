@@ -38,6 +38,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a11] - 2026-06-22
+
+> **Alpha / pre-release** — EU Data Act read-path data-quality (parser hardening, round 1).
+
+### Improved
+
+- **Bogus "no reading" values no longer reach your dashboard.** The EU Data Act portal ships sentinel markers (65535 / 2147483647 / 4294967295, plus -1 for charging-time and 0/1 for unsupported tyre-pressure) when a value is unavailable. These used to land as real SoC / range / odometer readings and permanently poison long-term statistics. They're now filtered out, with table-driven field-specific rules and a debug log on every drop.
+- **The odometer never jumps backwards.** Out-of-order portal snapshots could briefly lower the mileage/odometer; monotonic fields now keep the highest reading regardless of delivery order.
+- **Fresher value selection for fields without their own timestamp.** Bare value fields now inherit the dataset's capture time, so the freshest snapshot wins consistently instead of "last one in the file".
+
 ## [2.15.0a10] - 2026-06-22
 
 > **Alpha / pre-release** — reliability batch (from the failsafe audit + a tester log).
