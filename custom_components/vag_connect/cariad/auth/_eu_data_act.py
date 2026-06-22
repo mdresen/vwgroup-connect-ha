@@ -471,9 +471,12 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     ``fields`` may carry both the bare name (``soc``) and dotted variants
     (``battery_state_report.soc``); we try both.
     """
+    used: set[str] = set()
+
     def first(*names: str) -> str | None:
         for n in names:
             if n in fields:
+                used.add(n)
                 return fields[n]
         return None
 
@@ -536,6 +539,30 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     ))
     if lifetime is not None:
         d.lifetime_distance_km = lifetime
+
+    # a12 — additional high-confidence portal fields (purely additive; every
+    # existing mapping above is untouched). Names tried defensively via first().
+    crate = _to_int(first("battery_state_report.charge_rate", "charge_rate",
+                          "chargeRate_kmph", "charging_rate_kmh"))
+    if crate is not None:
+        d.charging_rate_kmh = crate
+
+    plug = first("charging_plug1_connectionstate", "plug_connection_state",
+                 "plugConnectionState", "plug_state")
+    if plug is not None:
+        d.plug_state = plug
+        d.plug_connected = str(plug).lower() in ("connected", "plugged", "true", "1")
+
+    # a12 — surface the long tail: portal fields we did NOT consume this poll.
+    # Debug-only, zero behaviour change. Feeds the Vehicle Data Scout and tells
+    # us exactly which dictionary entries to add next, from REAL payloads —
+    # beats a hand-maintained static dict that silently drops unknown fields.
+    unmapped = sorted(k for k in fields if k not in used)
+    if unmapped:
+        _LOGGER.debug(
+            "EU Data Act: %d unmapped portal field(s): %s",
+            len(unmapped), ", ".join(unmapped[:40]),
+        )
 
     return d
 

@@ -38,6 +38,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a12] - 2026-06-22
+
+> **Alpha / pre-release** — EU Data Act read-path: more portal fields + field discovery.
+
+### Improved
+
+- **More vehicle data from the EU Data Act portal.** Added charge-rate and plug-connection mapping, so the portal channel now fills more entities directly. Purely additive — every existing field mapping is unchanged.
+- **Automatic discovery of unmapped portal fields.** Every portal field we don't yet map is now logged (debug level), so new sensors get added from real-world payloads instead of guesswork — and it feeds the Vehicle Data Scout. This grows our coverage safely over time rather than shipping a large static guess.
+
 ## [2.15.0a11] - 2026-06-22
 
 > **Alpha / pre-release** — EU Data Act read-path data-quality (parser hardening, round 1).
