@@ -38,7 +38,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
@@ -47,6 +47,13 @@ from ..._canaries import CANARY_WEBSITE_AUTHPROXY
 from ..exceptions import AuthenticationError, EmailTwoFactorRequiredError
 from ..models import VehicleData
 from ._eu_data_act import _login_fields, _login_error, _resolve_action
+
+if TYPE_CHECKING:
+    from .._authproxy import (
+        AuthproxyImage,
+        AuthproxyRelations,
+        AuthproxyVehicleInfo,
+    )
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -812,6 +819,49 @@ class WebsiteAuthProxyConnector:
             if vin not in seen:
                 seen.append(vin)
         return seen
+
+    async def get_relations(self) -> AuthproxyRelations | None:
+        """Structured relations: VINs + ``mbbUserId`` + platform per vehicle.
+
+        a13 — the clean counterpart to the regex ``list_vehicle_vins`` scan.
+        Exposes ``mbbUserId`` (== the ``X-MbbUserId`` the MBB strategy needs) and
+        ``modBackend`` (MBB vs MEB) so a future combined entry can self-discover
+        VINs + user-id from the portal session instead of hard-coding them.
+        Returns ``None`` on a transient backend hiccup (401/403 still raises).
+        """
+        from .._authproxy import parse_relations  # noqa: PLC0415
+
+        body = await self._get_json(f"{_SITE_BASE}{_RELATIONS_PATH}", soft=True)
+        return parse_relations(body) if body is not None else None
+
+    async def get_master_data(self, vin: str) -> AuthproxyVehicleInfo:
+        """Market model name / engine / year / colour (text + code) for *vin*."""
+        from .._authproxy import (  # noqa: PLC0415
+            AuthproxyVehicleInfo,
+            build_vehicle_data_url,
+            build_vehicle_details_url,
+            parse_vehicle_data,
+            parse_vehicle_details,
+        )
+
+        info = AuthproxyVehicleInfo()
+        details = await self._get_json(build_vehicle_details_url(vin), soft=True)
+        if details is not None:
+            info = parse_vehicle_details(details, info)
+        data = await self._get_json(build_vehicle_data_url(vin), soft=True)
+        if data is not None:
+            info = parse_vehicle_data(data, info)
+        return info
+
+    async def get_exterior_images(self, vin: str) -> list[AuthproxyImage]:
+        """Exterior render URLs ({url, angle, viewDirection}) for *vin*."""
+        from .._authproxy import (  # noqa: PLC0415
+            build_vehicle_images_url,
+            parse_vehicle_images,
+        )
+
+        body = await self._get_json(build_vehicle_images_url(vin), soft=True)
+        return parse_vehicle_images(body) if body is not None else []
 
     async def get_vehicle_data(self, vin: str) -> VehicleData:
         """Fetch charging + maintenance for *vin* and map to ``VehicleData``.

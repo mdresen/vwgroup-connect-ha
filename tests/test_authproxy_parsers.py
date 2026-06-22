@@ -8,7 +8,13 @@ image parsing, and the proxy URL shape.
 """
 from __future__ import annotations
 
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
 from custom_components.vag_connect.cariad import _authproxy as ap
+from custom_components.vag_connect.cariad.auth._website_authproxy import (
+    WebsiteAuthProxyConnector,
+)
 
 _VIN = "WVWZZZAUZFW805377"
 
@@ -139,3 +145,39 @@ class TestUrlBuilders:
         assert f"vehicles/{_VIN}/data/de-DE" in ap.build_vehicle_data_url(_VIN)
         assert f"vehicleimages/exterior/{_VIN}" in ap.build_vehicle_images_url(_VIN)
         assert "resourceHost=myvw-vilma-proxy-prod" in ap.build_vehicle_images_url(_VIN)
+
+
+def _conn() -> WebsiteAuthProxyConnector:
+    return WebsiteAuthProxyConnector(MagicMock(), "u@t.de", "pw")  # type: ignore[arg-type]
+
+
+class TestConnectorReadMethods:
+    """The additive a13 read methods that wire the data-layer onto the session."""
+
+    def test_get_relations_discovers_vin_and_mbb_user_id(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(return_value=_RELATIONS)  # type: ignore[method-assign]
+        rel = asyncio.run(c.get_relations())
+        assert rel is not None
+        assert rel.mbb_user_id == "MMjVRD25UEHSL31wBcHXG5FdAJN"
+        assert rel.vins == [_VIN]
+
+    def test_get_relations_none_when_no_body(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(return_value=None)  # type: ignore[method-assign]
+        assert asyncio.run(c.get_relations()) is None
+
+    def test_get_master_data_merges_details_and_data(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(side_effect=[_DETAILS, _DATA])  # type: ignore[method-assign]
+        info = asyncio.run(c.get_master_data(_VIN))
+        assert info.model_year == "2015"
+        assert info.exterior_color_code == "0R"
+        assert info.spec_count == 202
+
+    def test_get_exterior_images(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(return_value=_IMAGES)  # type: ignore[method-assign]
+        imgs = asyncio.run(c.get_exterior_images(_VIN))
+        assert len(imgs) == 4
+        assert ap.primary_image_url(imgs) == "https://m/Front_Center.png"
