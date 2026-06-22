@@ -1591,11 +1591,17 @@ class VWEUClient(CariadBaseClient):
             url, sec, body_override if body_override is not None else spec.body,
             spec.content_type)
         request_id = parse_mbb_action_request_id(resp)
+        # NOTE: we deliberately do NOT poll for confirmation on the climater/
+        # charger/timer actions. The action fires correctly above, but their
+        # per-service status URL + response envelope differ from the RLU one
+        # and aren't live-captured yet — reusing the RLU poll (different host +
+        # path) would just 404 for ~45s and block the coordinator. HA reflects
+        # the new state on the next poll cycle. (RLU keeps its own poll in
+        # _command_rlu_mbb.) Wire a per-service _poll_mbb_action once the
+        # climater/charger status shape is captured live.
         _LOGGER.info(
-            "MBB command %s sent for ***%s (request_id=%s)",
-            command_name, vin[-6:], request_id or "(none)")
-        if request_id:
-            await self._poll_mbb_rlu(setter, vin, request_id, command_name)
+            "MBB command %s sent for ***%s (request_id=%s) — state updates "
+            "on the next poll", command_name, vin[-6:], request_id or "(none)")
 
     # ── v1/v2 endpoint dispatch (Session 3A — #51, #74) ─────────────────────
     #
