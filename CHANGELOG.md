@@ -38,24 +38,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.15.0a12] - 2026-06-22
-
-> **Alpha / pre-release** — EU Data Act read-path: more portal fields + field discovery.
-
-### Improved
-
-- **More vehicle data from the EU Data Act portal.** Added charge-rate and plug-connection mapping, so the portal channel now fills more entities directly. Purely additive — every existing field mapping is unchanged.
-- **Automatic discovery of unmapped portal fields.** Every portal field we don't yet map is now logged (debug level), so new sensors get added from real-world payloads instead of guesswork — and it feeds the Vehicle Data Scout. This grows our coverage safely over time rather than shipping a large static guess.
-
 ## [2.15.0a11] - 2026-06-22
 
-> **Alpha / pre-release** — EU Data Act read-path data-quality (parser hardening, round 1).
+> **Alpha / pre-release** — EU Data Act read-path: data-quality hardening + more portal fields.
 
 ### Improved
 
 - **Bogus "no reading" values no longer reach your dashboard.** The EU Data Act portal ships sentinel markers (65535 / 2147483647 / 4294967295, plus -1 for charging-time and 0/1 for unsupported tyre-pressure) when a value is unavailable. These used to land as real SoC / range / odometer readings and permanently poison long-term statistics. They're now filtered out, with table-driven field-specific rules and a debug log on every drop.
 - **The odometer never jumps backwards.** Out-of-order portal snapshots could briefly lower the mileage/odometer; monotonic fields now keep the highest reading regardless of delivery order.
 - **Fresher value selection for fields without their own timestamp.** Bare value fields now inherit the dataset's capture time, so the freshest snapshot wins consistently instead of "last one in the file".
+- **More vehicle data from the EU Data Act portal.** Added charge-rate and plug-connection mapping, so the portal channel now fills more entities directly. Purely additive — every existing field mapping is unchanged.
+- **Automatic discovery of unmapped portal fields.** Every portal field we don't yet map is now logged (debug level), so new sensors get added from real-world payloads instead of guesswork — and it feeds the Vehicle Data Scout. Coverage grows safely from real data instead of shipping a large static guess.
 
 ## [2.15.0a10] - 2026-06-22
 
