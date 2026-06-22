@@ -26,7 +26,7 @@
 
 ## What is this?
 
-**VW Group Connect is a [Home Assistant](https://www.home-assistant.io) integration that brings connected-car data and control into your smart home for all seven Volkswagen Group brands — Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche and VW US/Canada — from a single config entry.**
+**VW Group Connect is a [Home Assistant](https://www.home-assistant.io) integration that brings connected-car data and control into your smart home for all seven Volkswagen Group brands — Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche and VW US/Canada — plus Bentley (read-only), from a single config entry.**
 
 It surfaces battery & charging state, range, odometer, climate, doors & windows, location and more, and — where the brand's backend still allows it — sends remote commands such as lock/unlock, climate and charge control. To keep working through Volkswagen's 2026 API changes it speaks **several channels and falls back automatically** when one is blocked: the brand-native backends, the read-only **EU Data Act** vehicle-data portal, an opt-in `volkswagen.de` web channel, and a durable **passwordless** login for older Car-Net vehicles. It runs happily **alongside [evcc](https://evcc.io)** and needs **zero PyPI dependencies**.
 
@@ -56,6 +56,7 @@ It surfaces battery & charging state, range, odometer, climate, doors & windows,
 | **VW US/CA** | ✅ Two-way | ✅ Full | VW NA cloud |
 | **VW EU** | ⚠️ Durable Car-Net (older models) | ✅ EU Data Act + vw.de (beta) | newer ID/MEB cars: read-only via portal |
 | **CUPRA / SEAT** | ⚠️ Limited | ✅ EU Data Act | brand backend gated by VW since 2026 |
+| **Bentley** | ⏳ Live-test gated | ✅ Login + read | My Bentley — runs on the Audi platform/tenant |
 
 > Honest note: in 2026 Volkswagen put parts of its API behind device attestation. This integration routes around it where possible (durable Car-Net login, EU Data Act portal, vw.de web) and is transparent about what each channel can and cannot do.
 
