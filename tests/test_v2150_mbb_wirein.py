@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import base64
 import json
+from pathlib import Path
 
 import pytest
 
@@ -40,6 +41,8 @@ from custom_components.vag_connect.cariad.auth._device_grant import (
     mbb_dag_config,
 )
 from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+
+_FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _make_jwt(claims: dict) -> str:
@@ -314,6 +317,115 @@ class TestBrandSegmentUnchanged:
 
     def test_audi_segment(self) -> None:
         assert _mbb.mbb_brand_segment("audi") == "Audi"
+
+
+# ── operationList: the service directory (license + hosts + commands) ─
+#
+# Parsed against the REAL operationList captured live 2026-06-21 from a
+# Golf GTE whose We Connect subscription had expired (VIN/userId redacted
+# in the fixture). This is the data that solved the whole "no data"
+# mystery: the read 403s were an EXPIRED subscription, not a code bug.
+
+
+def _load_oplist_fixture() -> dict:
+    return json.loads(
+        (_FIXTURES / "mbb_operationlist_golf_expired.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+class TestOperationListParse:
+    def test_url_builder(self) -> None:
+        assert _mbb.build_mbb_operationlist_url(
+            "https://mal-1a.prd.ece.vwg-connect.com", "wvwzzz000",
+        ) == (
+            "https://mal-1a.prd.ece.vwg-connect.com/api/rolesrights/"
+            "operationlist/v3/vehicles/WVWZZZ000"
+        )
+
+    def test_parses_real_fixture(self) -> None:
+        ol = _mbb.parse_mbb_operationlist(_load_oplist_fixture())
+        assert ol is not None
+        assert ol.role == "PRIMARY_USER"
+        assert ol.status == "ENABLED"
+        assert len(ol.services) == 12
+        assert _mbb.MBB_STATUS_SERVICE_ID in ol.services
+
+    def test_status_service_is_expired(self) -> None:
+        ol = _mbb.parse_mbb_operationlist(_load_oplist_fixture())
+        sr = ol.status_service
+        assert sr is not None
+        assert sr.enabled is False
+        assert sr.license_required is True
+        assert sr.license_status == "EXPIRED"
+        assert sr.license_expiry == "2026-06-16T22:34:00Z"
+        assert "noActiveLicense" in sr.reasons
+
+    def test_subscription_active_false_when_expired(self) -> None:
+        ol = _mbb.parse_mbb_operationlist(_load_oplist_fixture())
+        assert _mbb.mbb_subscription_active(ol) is False
+
+    def test_free_essential_service_is_enabled(self) -> None:
+        ol = _mbb.parse_mbb_operationlist(_load_oplist_fixture())
+        svc = ol.service("services_v1")
+        assert svc is not None
+        assert svc.enabled is True
+        assert svc.license_required is False
+
+    def test_service_base_substitutes_template(self) -> None:
+        ol = _mbb.parse_mbb_operationlist(_load_oplist_fixture())
+        base = _mbb.mbb_service_base(
+            ol, "rclima_v1", brand="volkswagen", country="CH", vin="wvwzzz1",
+        )
+        assert base == (
+            "https://mal-1a.prd.ece.vwg-connect.com/api/bs/climatisation/v1/"
+            "vehicles/WVWZZZ1/"
+        )
+
+    def test_service_base_none_when_no_invocation_url(self) -> None:
+        # statusreport_v1 carries no invocationUrl in the real data.
+        ol = _mbb.parse_mbb_operationlist(_load_oplist_fixture())
+        assert _mbb.mbb_service_base(
+            ol, _mbb.MBB_STATUS_SERVICE_ID, brand="volkswagen",
+            country="CH", vin="x",
+        ) is None
+
+    def test_operations_carry_remote_commands(self) -> None:
+        ol = _mbb.parse_mbb_operationlist(_load_oplist_fixture())
+        rclima = ol.service("rclima_v1")
+        cmds = {o.get("remoteCommand") for o in rclima.operations}
+        assert "startClimatisation" in cmds
+
+    def test_none_and_garbage_safe(self) -> None:
+        assert _mbb.parse_mbb_operationlist(None) is None
+        assert _mbb.parse_mbb_operationlist({}) is None
+        assert _mbb.parse_mbb_operationlist({"operationList": "x"}) is None
+        assert _mbb.mbb_subscription_active(None) is None
+
+    def test_subscription_active_true_path(self) -> None:
+        # Synthetic Enabled status service (the fixture is expired) — verifies
+        # the active branch since real subscribed-car data wasn't captured.
+        ol = _mbb.parse_mbb_operationlist({
+            "operationList": {
+                "vin": "X", "role": "PRIMARY_USER", "status": "ENABLED",
+                "serviceInfo": [
+                    {"serviceId": "statusreport_v1", "licenseRequired": True,
+                     "serviceStatus": {"status": "Enabled"}},
+                ],
+            }
+        })
+        assert _mbb.mbb_subscription_active(ol) is True
+        assert ol.status_service.enabled is True
+
+    def test_missing_status_service_yields_unknown(self) -> None:
+        ol = _mbb.parse_mbb_operationlist({
+            "operationList": {"vin": "X", "serviceInfo": [
+                {"serviceId": "services_v1", "serviceStatus": {"status": "Enabled"}},
+            ]}
+        })
+        # No statusreport_v1 → subscription state is unknown (None), not False.
+        assert _mbb.mbb_subscription_active(ol) is None
 
 
 # ── auth-isolation regression gates (review 2026-06-21) ───────────────

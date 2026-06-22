@@ -38,6 +38,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a6] - 2026-06-21
+
+> **Alpha / pre-release** — the diagnostics paid off. Live probing revealed the durable VW login works perfectly *and* reads data — the empty status on the test car was simply an **expired We Connect subscription** (every paid service was off). This build reads the car's service directory so it knows that, and tells you instead of failing silently. No re-add needed — update and restart.
+
+### Added
+
+- **The MBB integration now reads your vehicle's "service directory" (operationList).** This is the authoritative list of which connected services your car has and whether they're licensed/active. From it the integration now:
+  - **tells you when your We Connect / connect subscription is expired or inactive** — the `subscription_active` / subscription-expiry / days-remaining sensors are populated, and the log says "renew it in the app" instead of dumping cryptic 403 errors;
+  - **skips the status read entirely when the subscription is inactive** (it would only 403), so the log stays clean and the poll is faster;
+  - lays the groundwork for the full command set later (the directory hands over the exact per-service hosts and the granted remote-commands for climate, charging and timers).
+
+> ℹ️ If your car shows everything "unknown" and `subscription_active` is off, that's the cause — renew We Connect for that vehicle (or test on a car with an active subscription) and the data flows. The durable login itself is working.
+
 ## [2.15.0a5] - 2026-06-21
 
 > **Alpha / pre-release** — diagnostics build. a4 got the car to appear via the VIN; now the status read returns nothing, so this surfaces exactly why. No re-add needed — just update and restart.

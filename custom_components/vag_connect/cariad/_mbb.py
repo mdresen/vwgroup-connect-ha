@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 _LOGGER = logging.getLogger(__name__)
@@ -562,3 +563,180 @@ def parse_mbb_rlu_status(response: dict | None) -> str | None:
             return status
     status = response.get("status")
     return status if isinstance(status, str) else None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.15.0a6 — MBB operationList: the service directory (license + hosts + cmds)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# ``GET {setter}/api/rolesrights/operationlist/v3/vehicles/{vin}`` returns the
+# per-vehicle service catalogue. Live-confirmed 2026-06-21 (real account):
+# HTTP 200 even when the paid services are unlicensed — it is the authoritative
+# source for (a) WHETHER a service is licensed/enabled (so we surface
+# "subscription expired" instead of a cryptic 403, and skip doomed reads),
+# (b) the per-service host (``invocationUrl``) for commands, and (c) the granted
+# operations + their ``remoteCommand`` names. The whole "no data" mystery on a
+# car turned out to be an EXPIRED We Connect subscription — every paid service
+# (``statusreport_v1`` = vehicle status, ``rclima_v1``, ``rbatterycharge_v1`` …)
+# was ``serviceStatus: Disabled, reason: noActiveLicense``.
+#
+# Shape (real, redacted)::
+#
+#   {"operationList": {"vin": "...", "role": "PRIMARY_USER", "status": "ENABLED",
+#     "serviceInfo": [
+#       {"serviceId": "statusreport_v1", "licenseRequired": true,
+#        "serviceStatus": {"status": "Disabled", "reason": ["noActiveLicense"]},
+#        "cumulatedLicense": {"status": "EXPIRED",
+#          "expirationDate": {"content": "2026-06-16T22:34:00Z"}},
+#        "operation": [{"id": "G_SVDATA", "permission": "granted"}, …]},
+#       {"serviceId": "rclima_v1", …,
+#        "invocationUrl": {"content": "https://mal-1a…/api/bs/climatisation/v1/vehicles/{vin}/"}},
+#       …]}}
+
+# The canonical status service — its licence is the proxy for "the user's
+# We Connect / connect subscription is active" (all paid services share one
+# cumulatedLicence in practice).
+MBB_STATUS_SERVICE_ID = "statusreport_v1"
+
+
+def build_mbb_operationlist_url(setter_base: str, vin: str) -> str:
+    """GET URL for the per-VIN operationList (service directory)."""
+    return (
+        f"{setter_base}/api/rolesrights/operationlist/v3/vehicles/{vin.upper()}"
+    )
+
+
+@dataclass
+class MbbService:
+    """One entry of the operationList ``serviceInfo``."""
+
+    service_id: str
+    status: str                       # "Enabled" / "Disabled" / "" (unknown)
+    license_required: bool = False
+    license_status: str | None = None  # "EXPIRED" / "ACTIVE" / None
+    license_expiry: str | None = None  # ISO-8601 string
+    reasons: list[str] = field(default_factory=list)
+    invocation_url: str | None = None  # template, may carry {vin}/{brand}/{country}
+    operations: list[dict] = field(default_factory=list)
+
+    @property
+    def enabled(self) -> bool:
+        return self.status.lower() == "enabled"
+
+
+@dataclass
+class MbbOperationList:
+    """Parsed operationList for one VIN."""
+
+    vin: str
+    role: str | None = None
+    status: str | None = None
+    services: dict[str, MbbService] = field(default_factory=dict)
+
+    def service(self, service_id: str) -> MbbService | None:
+        return self.services.get(service_id)
+
+    @property
+    def status_service(self) -> MbbService | None:
+        return self.services.get(MBB_STATUS_SERVICE_ID)
+
+
+def parse_mbb_operationlist(
+    response: dict | None, vin: str = "",
+) -> MbbOperationList | None:
+    """Parse the operationList response into a typed structure.
+
+    Defensive against every level being absent / the wrong type. Returns
+    None only when there is no recognisable ``operationList`` envelope.
+    """
+    if not isinstance(response, dict):
+        return None
+    ol = response.get("operationList")
+    if not isinstance(ol, dict):
+        return None
+    result = MbbOperationList(
+        vin=str(ol.get("vin") or vin),
+        role=ol.get("role") if isinstance(ol.get("role"), str) else None,
+        status=ol.get("status") if isinstance(ol.get("status"), str) else None,
+    )
+    services = ol.get("serviceInfo")
+    if not isinstance(services, list):
+        return result
+    for svc in services:
+        if not isinstance(svc, dict):
+            continue
+        sid = svc.get("serviceId")
+        if not isinstance(sid, str):
+            continue
+        svc_status = svc.get("serviceStatus")
+        status = ""
+        reasons: list[str] = []
+        if isinstance(svc_status, dict):
+            status = str(svc_status.get("status") or "")
+            raw_reasons = svc_status.get("reason")
+            if isinstance(raw_reasons, list):
+                reasons = [str(r) for r in raw_reasons]
+        lic = svc.get("cumulatedLicense")
+        lic_status: str | None = None
+        lic_expiry: str | None = None
+        if isinstance(lic, dict):
+            lic_status = lic.get("status") if isinstance(lic.get("status"), str) else None
+            exp = lic.get("expirationDate")
+            if isinstance(exp, dict) and isinstance(exp.get("content"), str):
+                lic_expiry = exp["content"]
+        inv = svc.get("invocationUrl")
+        inv_url: str | None = None
+        if isinstance(inv, dict) and isinstance(inv.get("content"), str):
+            inv_url = inv["content"]
+        ops = svc.get("operation")
+        operations = [o for o in ops if isinstance(o, dict)] if isinstance(ops, list) else []
+        result.services[sid] = MbbService(
+            service_id=sid,
+            status=status,
+            license_required=bool(svc.get("licenseRequired")),
+            license_status=lic_status,
+            license_expiry=lic_expiry,
+            reasons=reasons,
+            invocation_url=inv_url,
+            operations=operations,
+        )
+    return result
+
+
+def mbb_subscription_active(oplist: MbbOperationList | None) -> bool | None:
+    """Is the vehicle-status service licensed/usable right now?
+
+    True  → ``statusreport_v1`` is Enabled (subscription active → reads work).
+    False → it exists but is Disabled (expired / no active licence).
+    None  → unknown (no operationList / no status service entry).
+    """
+    if oplist is None:
+        return None
+    svc = oplist.status_service
+    if svc is None:
+        return None
+    return svc.enabled
+
+
+def mbb_service_base(
+    oplist: MbbOperationList | None, service_id: str, *, brand: str, country: str,
+    vin: str,
+) -> str | None:
+    """Return a fully-substituted host base for a service from its
+    ``invocationUrl`` template, or None when the service has no URL.
+
+    The template carries ``{vin}`` and sometimes ``{brand}``/``{country}``;
+    substitute them so the caller gets a ready base (still ending in ``/``).
+    """
+    if oplist is None:
+        return None
+    svc = oplist.service(service_id)
+    if svc is None or not svc.invocation_url:
+        return None
+    seg = mbb_brand_segment(brand)
+    return (
+        svc.invocation_url
+        .replace("{vin}", vin.upper())
+        .replace("{brand}", seg)
+        .replace("{country}", country)
+    )

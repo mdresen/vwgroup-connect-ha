@@ -9,7 +9,10 @@ import base64
 from datetime import datetime, timedelta, timezone
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .._mbb import MbbOperationList
 
 from .._util import compute_connection_state, safe_float, safe_int
 from ..exceptions import (
@@ -1207,6 +1210,80 @@ class VWEUClient(CariadBaseClient):
         )
         return []
 
+    async def _get_mbb_operationlist(
+        self, vin: str,
+    ) -> "MbbOperationList | None":
+        """Fetch + cache the per-VIN MBB operationList (service directory).
+
+        Cached 12h — the licence/enrolment state changes rarely, and the call
+        is on the setter host (mal-1a, ``/api`` prefix). Returns a parsed
+        ``MbbOperationList`` or None on failure (caller treats None as
+        "unknown" — it does NOT block the read).
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_SETTER_BASE,
+            build_mbb_operationlist_url,
+            parse_mbb_operationlist,
+        )
+
+        if not hasattr(self, "_mbb_oplist_cache"):
+            self._mbb_oplist_cache: dict[
+                str, tuple[MbbOperationList, datetime]
+            ] = {}
+        now = datetime.now(tz=timezone.utc)
+        cached = self._mbb_oplist_cache.get(vin)
+        if cached and cached[1] > now:
+            return cached[0]
+
+        url = build_mbb_operationlist_url(MBB_SETTER_BASE, vin)
+        try:
+            resp = await self._mbb_get(url)
+        except APIError as err:
+            _LOGGER.warning(
+                "MBB operationList ***%s → HTTP %s: %s",
+                vin[-6:], err.status, str(err.body)[:160],
+            )
+            return None
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "MBB operationList ***%s failed: %s", vin[-6:], type(err).__name__,
+            )
+            return None
+
+        oplist = parse_mbb_operationlist(resp, vin)
+        if oplist is not None:
+            self._mbb_oplist_cache[vin] = (oplist, now + timedelta(hours=12))
+            enabled = [s for s in oplist.services.values() if s.enabled]
+            _LOGGER.info(
+                "MBB operationList ***%s: role=%s status=%s, %d/%d services "
+                "enabled", vin[-6:], oplist.role, oplist.status,
+                len(enabled), len(oplist.services),
+            )
+        return oplist
+
+    def _apply_mbb_subscription(
+        self, d: VehicleData, oplist: "MbbOperationList | None",
+    ) -> None:
+        """Populate the subscription_* fields from the operationList status
+        service licence (surfaces as the subscription sensors in HA)."""
+        from .._mbb import mbb_subscription_active  # noqa: PLC0415
+
+        d.subscription_active = mbb_subscription_active(oplist)
+        if oplist is None:
+            return
+        svc = oplist.status_service
+        if svc is None or not svc.license_expiry:
+            return
+        d.subscription_expiry_at = svc.license_expiry
+        try:
+            exp = datetime.fromisoformat(svc.license_expiry.replace("Z", "+00:00"))
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            delta = exp - datetime.now(tz=timezone.utc)
+            d.subscription_days_remaining = delta.days
+        except (ValueError, TypeError):
+            pass
+
     async def _get_status_via_mbb_vsr(self, vin: str) -> VehicleData:
         """Read vehicle status via the durable MBB VSR endpoint.
 
@@ -1219,11 +1296,30 @@ class VWEUClient(CariadBaseClient):
             MBB_VSR_FIELD_TANK_PCT,
             MBB_VSR_FIELD_TOTAL_RANGE_KM,
             build_mbb_vsr_status_url,
+            mbb_subscription_active,
             mbb_vsr_field_ids as _mbb_vsr_field_ids,
             parse_mbb_vsr_field,
         )
 
         d = VehicleData(vin=vin)
+
+        # ── operationList: the service directory. It tells us, authoritatively,
+        # whether the vehicle-status service is LICENSED. The classic "no data"
+        # case is an EXPIRED We Connect subscription — every paid service is
+        # Disabled/noActiveLicense and the VSR read just 403s. Read it first so
+        # we (a) surface the subscription state on the entity and (b) skip the
+        # doomed VSR call (and its scary 403 log) when it's not licensed. ──
+        oplist = await self._get_mbb_operationlist(vin)
+        self._apply_mbb_subscription(d, oplist)
+        if mbb_subscription_active(oplist) is False:
+            _LOGGER.warning(
+                "MBB ***%s: the vehicle-status service is not licensed — your "
+                "We Connect subscription looks expired/inactive (renew it in "
+                "the We Connect app). Skipping the status read; the "
+                "subscription sensors still update.", vin[-6:],
+            )
+            return d
+
         read_base = await self._mbb_resolve_read_base(vin)
         country = self._mbb_country_from_id_token() or "DE"
         host_label = read_base.split("//")[-1].split("/")[0]
