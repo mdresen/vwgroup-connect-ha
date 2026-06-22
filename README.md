@@ -24,6 +24,23 @@
 
 ---
 
+> ### 📛 Note on the rename
+> Previously published as **`vag-connect-ha`** (VAG = Volkswagen AG, standard DACH abbreviation).
+> Turns out that abbreviation reads *quite* differently to English speakers 😅
+>
+> **What keeps working as before**: all entities (e.g. `sensor.audi_q4_battery_soc`),
+> all service-calls (`vag_connect.lock`, `vag_connect.show_vag` etc.), all automations,
+> the HACS install - **nothing breaks**. Marketing/display name changes, code internals
+> stay unchanged. See [`MIGRATION.md`](MIGRATION.md).
+>
+> Huge thanks to the **Home Assistant UK** and **HA Ideas, Projects and Solutions**
+> communities for the heads-up - especially **Si Gregory**, **Ben Johnson**, and **Evets David**.
+>
+> And a special shoutout to **Jordan Waeles**, whose `show_vag()` comment is now an officially
+> supported easter egg in this integration (`vag_connect.show_vag` service, see CHANGELOG v2.2.3).
+
+---
+
 ## What is this?
 
 **VW Group Connect is a [Home Assistant](https://www.home-assistant.io) integration that brings connected-car data and control into your smart home for all seven Volkswagen Group brands — Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche and VW US/Canada — plus Bentley (read-only), from a single config entry.**
