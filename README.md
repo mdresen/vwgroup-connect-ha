@@ -244,6 +244,18 @@ Details in [`PRIVACY.md`](PRIVACY.md) und [`SECURITY.md`](SECURITY.md).
 
 ---
 
+## Unterstützen ❤️
+
+Diese Integration ist ein Ein-Mann-Projekt — und VW macht es einem nicht leicht: jede Backend-Änderung (zuletzt die Attestation-Wand im Mai 2026) bedeutet Tage bis Wochen Reverse-Engineering, um wieder einen funktionierenden Weg zu finden. Genau diese Hartnäckigkeit hält die Integration am Leben, wo etablierte Projekte aufgegeben haben.
+
+Wenn dir das etwas wert ist, kannst du mich über **[GitHub Sponsors](https://github.com/sponsors/its-me-prash)** unterstützen. Jeder Beitrag hilft mir, dranzubleiben — neue Kanäle zu finden, schnell auf VW-Änderungen zu reagieren und das Ganze für alle am Laufen zu halten. Danke! 🙏
+
+<p align="center">
+  <a href="https://github.com/sponsors/its-me-prash"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-ec6cb9?logo=github-sponsors&logoColor=white" alt="Sponsor"></a>
+</p>
+
+---
+
 ## Contributing
 
 PRs willkommen, siehe [`CONTRIBUTING.md`](CONTRIBUTING.md). Style-Regeln in [`STYLE.md`](STYLE.md) (Privat in `_private/STYLE.md` für maintainer).
