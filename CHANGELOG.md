@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a8] - 2026-06-22
+
+> **Alpha / pre-release** — small but important UX fix from a tester report (#498).
+
+### Fixed
+
+- **The MBB login now tells newer ID / MEB owners why it can't work, instead of looping the VIN screen.** If the durable MBB login returns `Unknown user`, that means the car is a newer ID.3/4/5 / MEB model that was never enrolled in the legacy Car-Net backend — so the durable login + remote commands genuinely can't reach it. Instead of bouncing you back to the VIN form with a cryptic error, the flow now stops with a clear message pointing you to the EU Data Act portal (or email + password) for those vehicles. The MBB login is for older Car-Net cars (most PHEV / combustion models).
+
 ## [2.15.0a7] - 2026-06-22
 
 > **Alpha / pre-release — the "Endstufe" two-way test.** The deep dive settled what the durable VW login can and can't do, and this build ships the part that genuinely works durably: **remote commands**. No re-add needed — update and restart, then try a command.

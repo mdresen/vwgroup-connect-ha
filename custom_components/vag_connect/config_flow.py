@@ -280,6 +280,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._dag_mbb: bool = False
         self._dag_mbb_tokens: Any = None
         self._dag_mbb_client_id: str = ""
+        # v2.15.0a8 — set when the MBB exchange says "Unknown user" (account/car
+        # has no legacy Car-Net/MBB enrolment → newer ID/MEB car). Aborts the
+        # flow with a clear "not eligible, use EU Data Act" message.
+        self._dag_mbb_ineligible: bool = False
         # v2.14.0 — website-authproxy (opt-in beta) pending state between the
         # credentials step and the email-OTP step. The connector + its session
         # are held open across the two-step OTP exchange so the cookie jar
@@ -647,6 +651,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             self._dag_tokens = None
             self._dag_mbb_tokens = None
             self._dag_mbb_client_id = ""
+            self._dag_mbb_ineligible = False
             self._dag_user_id = ""
             self._dag_error = ""
             return await self.async_step_browser_login_pending()
@@ -865,6 +870,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 )
                 if minted_ok:
                     return await self.async_step_browser_login_finish()
+                # v2.15.0a8 — MBB exchange said "Unknown user": this car is a
+                # newer ID/MEB model with no legacy Car-Net/MBB enrolment, so
+                # MBB will never work for it. Abort with a clear pointer to the
+                # EU Data Act / email-password channels rather than looping.
+                if self._dag_mbb and self._dag_mbb_ineligible:
+                    return self.async_abort(reason="mbb_not_eligible")
                 # Poll/mint completed with error — reset state and route
                 # back to the right brand/MBB picker so user can retry.
                 self._dag_poll_task = None
@@ -1084,6 +1095,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 )
         except Exception as err:  # noqa: BLE001 — flow-level catch
             self._dag_error = str(err)
+            # v2.15.0a8 — the MBB token exchange returns
+            # ``invalid_grant: "Unknown user"`` when the account/vehicle has no
+            # legacy Car-Net/MBB enrolment — i.e. a newer ID/MEB car. That's
+            # not a transient failure: MBB (durable login + commands) simply
+            # doesn't cover MEB cars. Flag it so the flow aborts with a clear
+            # "use EU Data Act instead" message rather than looping the VIN form.
+            low = str(err).lower()
+            if self._dag_mbb and ("unknown user" in low or "invalid_grant" in low):
+                self._dag_mbb_ineligible = True
             _LOGGER.warning(
                 "Browser login Phase 2 failed for %s: %s",
                 self._dag_brand, err,

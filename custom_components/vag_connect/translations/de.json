@@ -154,7 +154,8 @@
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
       "reauth_successful": "Erneute Anmeldung erfolgreich.",
-      "reconfigure_successful": "Konfiguration erfolgreich aktualisiert."
+      "reconfigure_successful": "Konfiguration erfolgreich aktualisiert.",
+      "mbb_not_eligible": "Dein Fahrzeug ist für den dauerhaften MBB-Login nicht geeignet — das Backend meldet „Unknown user\". Das heisst, es ist ein neueres ID-/MEB-Modell (ID.3/4/5, e-up usw.), das nie im alten Car-Net/MBB-System registriert war — der dauerhafte Login + die Fernbefehle erreichen es daher nicht. Nutze für solche Fahrzeuge den EU-Data-Act-Kanal (oder den E-Mail-+-Passwort-Login). Der MBB-Login ist für ältere Car-Net-Autos (die meisten PHEV-/Verbrenner-Modelle)."
     },
     "progress": {
       "awaiting_browser_login": "Öffne {verification_uri} in einem Browser, melde dich mit deinem Brand-ID-Konto an und bestätige den Code {user_code}.",

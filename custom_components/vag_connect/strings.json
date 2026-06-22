@@ -154,7 +154,8 @@
     "abort": {
       "already_configured": "This account is already configured.",
       "reauth_successful": "Re-authentication successful.",
-      "reconfigure_successful": "Configuration updated successfully."
+      "reconfigure_successful": "Configuration updated successfully.",
+      "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models)."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
