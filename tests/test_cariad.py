@@ -654,6 +654,31 @@ class TestVWEUStatusParsing:
         result = client._parse_status("VIN1", self._ev_payload(), {})
         assert result.target_temperature == 21.0
 
+    def test_climatisation_invalid_state_is_inactive(self):
+        """#442 (nekas123, Audi e-tron): the car can report
+        ``climatisationState = "invalid"`` (a degraded/no-data sentinel, seen
+        when climatisation can't start — e.g. low battery). It must read as
+        inactive: the old check only caught OFF /
+        CLIMATISATION_STATUS_UNAVAILABLE, so "invalid" was a false-positive on.
+        """
+        import copy
+        payload = copy.deepcopy(self._ev_payload())
+        payload["climatisation"]["climatisationStatus"]["value"][
+            "climatisationState"] = "invalid"
+        result = self._client()._parse_status("VIN1", payload, {})
+        assert result.climatisation_state == "invalid"
+        assert result.climatisation_active is False
+
+    def test_climatisation_active_state_still_on(self):
+        """Counterpart to the #442 fix — a genuinely running state (HEATING)
+        must still report active=True after widening the inactive set."""
+        import copy
+        payload = copy.deepcopy(self._ev_payload())
+        payload["climatisation"]["climatisationStatus"]["value"][
+            "climatisationState"] = "HEATING"
+        result = self._client()._parse_status("VIN1", payload, {})
+        assert result.climatisation_active is True
+
     def test_ev_departure_timer_1_enabled(self):
         client = self._client()
         result = client._parse_status("VIN1", self._ev_payload(), {})

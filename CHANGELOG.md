@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a9] - 2026-06-22
+
+> **Alpha / pre-release** — small fix from a tester report (#442).
+
+### Fixed
+
+- **Climatisation no longer shows as "on" when the car can't actually start it.** On some Audi/VW cars the climatisation status comes back as `invalid` — a no-data state the car returns when climatisation can't run, e.g. at a low battery. The integration was treating anything that wasn't an explicit "off" as "running", so the climatisation binary sensor flipped on by mistake. It now treats those no-data states as off, so the sensor reflects reality.
+
 ## [2.15.0a8] - 2026-06-22
 
 > **Alpha / pre-release** — small but important UX fix from a tester report (#498).

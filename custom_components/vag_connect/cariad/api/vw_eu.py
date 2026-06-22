@@ -2942,7 +2942,18 @@ class VWEUClient(CariadBaseClient):
 
         # ── Climatisation ─────────────────────────────────────────────────────
         d.climatisation_state = v(raw, "climatisation", "climatisationStatus", "value", "climatisationState")
-        d.climatisation_active = d.climatisation_state not in (None, "OFF", "CLIMATISATION_STATUS_UNAVAILABLE")
+        # v2.15.0a9 — #442 (nekas123, Audi e-tron): the car can report
+        # ``climatisationState = "invalid"`` (a degraded/no-data sentinel — seen
+        # when climatisation can't start, e.g. at a low battery level). The old
+        # check only treated OFF / CLIMATISATION_STATUS_UNAVAILABLE as inactive,
+        # so "invalid" (and any case variant) fell through to active=True — a
+        # false positive. Normalise case and treat the no-data sentinels as off.
+        _clima = d.climatisation_state
+        d.climatisation_active = (
+            _clima is not None
+            and str(_clima).strip().upper()
+            not in ("OFF", "INVALID", "CLIMATISATION_STATUS_UNAVAILABLE", "UNSUPPORTED")
+        )
         d.target_temperature = v(raw, "climatisation", "climatisationSettings", "value", "targetTemperature_C")
 
         # v2.2.3 — scout #272 (VW EU arvcer 2026-05-23): third member
