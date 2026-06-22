@@ -373,7 +373,7 @@ class TestIDKAuth:
 
         auth = IDKAuth(session, BRAND_VW_EU)
         with pytest.raises(AuthenticationError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth.authenticate("user@test.de", "pass")
             )
 
@@ -394,7 +394,7 @@ class TestIDKAuth:
 
         auth = IDKAuth(session, BRAND_AUDI)
         with pytest.raises(AuthenticationError, match="503"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth.authenticate("user@test.de", "pass")
             )
 
@@ -480,12 +480,12 @@ class TestBaseClient:
         client = self._make_client(json_data={
             "data": [{"vin": "WVWZZZAUZLW012345"}, {"vin": "WAUZZZ4G5KN012345"}]
         })
-        vins = asyncio.get_event_loop().run_until_complete(client.get_vehicles())
+        vins = asyncio.run(client.get_vehicles())
         assert vins == ["WVWZZZAUZLW012345", "WAUZZZ4G5KN012345"]
 
     def test_get_vehicles_empty(self):
         client = self._make_client(json_data={"data": []})
-        vins = asyncio.get_event_loop().run_until_complete(client.get_vehicles())
+        vins = asyncio.run(client.get_vehicles())
         assert vins == []
 
     def test_request_raises_api_error_on_500(self):
@@ -503,7 +503,7 @@ class TestBaseClient:
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
             with pytest.raises(APIError) as exc:
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     client._request("GET", "https://example.com/api")
                 )
         assert exc.value.status == 500
@@ -516,7 +516,7 @@ class TestBaseClient:
         client = VWEUClient(session, "u@t.de", "pw")
         client._tokens = TokenSet("acc", "ref", "id")
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client._request("POST", "https://example.com/api")
         )
         assert result is None
@@ -778,7 +778,7 @@ class TestSkodaClient:
         client = SkodaClient(session, "u@t.de", "pw")
         client._tokens = TokenSet("acc", "ref", "id")
 
-        vins = asyncio.get_event_loop().run_until_complete(client.get_vehicles())
+        vins = asyncio.run(client.get_vehicles())
         assert "TMBJB7NE5M3001234" in vins
 
     def test_api_base_is_skoda(self):
@@ -830,7 +830,7 @@ class TestSeatCupraClient:
         client._tokens = TokenSet(
             access_token="fake_access", refresh_token="fake_refresh", id_token=fake_jwt
         )
-        asyncio.get_event_loop().run_until_complete(client._fetch_user_id())
+        asyncio.run(client._fetch_user_id())
         assert client._user_id == "test-user-123"
 
     def test_fetch_user_id_fallback_on_bad_jwt(self):
@@ -842,7 +842,7 @@ class TestSeatCupraClient:
             access_token="fake", refresh_token="fake", id_token="not.a.jwt"
         )
         # Should not crash, user_id stays None (fallback API call will also fail in test)
-        asyncio.get_event_loop().run_until_complete(client._fetch_user_id())
+        asyncio.run(client._fetch_user_id())
         # user_id is None because both JWT and API fallback failed
         assert client._user_id is None
 
@@ -883,7 +883,7 @@ class TestIDKAuthFlow:
         session.post = MagicMock(return_value=token_resp)
 
         auth = IDKAuth(session, BRAND_VW_EU)
-        result = asyncio.get_event_loop().run_until_complete(auth.refresh("old_refresh"))
+        result = asyncio.run(auth.refresh("old_refresh"))
         assert result.access_token == "new_acc"
         assert result.refresh_token == "new_ref"
 
@@ -899,7 +899,7 @@ class TestIDKAuthFlow:
 
         auth = IDKAuth(session, BRAND_VW_EU)
         with pytest.raises(TokenExpiredError):
-            asyncio.get_event_loop().run_until_complete(auth.refresh("expired_token"))
+            asyncio.run(auth.refresh("expired_token"))
 
     def test_exchange_code_skoda_proprietary(self):
         """Škoda uses proprietary JSON API, not standard OAuth."""
@@ -916,7 +916,7 @@ class TestIDKAuthFlow:
         session.post = MagicMock(return_value=token_resp)
 
         auth = IDKAuth(session, BRAND_SKODA)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             auth._exchange_code("AUTH_CODE_XYZ", "verifier_abc")
         )
         assert result.access_token == "skoda_acc"
@@ -936,7 +936,7 @@ class TestIDKAuthFlow:
         session.post = MagicMock(return_value=token_resp)
 
         auth = IDKAuth(session, BRAND_AUDI)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             auth._exchange_code("CODE", "VERIFIER")
         )
         assert result.access_token == "audi_acc"
@@ -953,7 +953,7 @@ class TestIDKAuthFlow:
 
         auth = IDKAuth(session, BRAND_AUDI)
         with pytest.raises(AuthenticationError, match="401"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._exchange_code("CODE", "VERIFIER")
             )
 
@@ -978,7 +978,7 @@ class TestIDKAuthFlow:
 
         auth = IDKAuth(session, BRAND_VW_EU)
         with pytest.raises(TermsAndConditionsError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._follow_to_app_redirect(
                     "https://idp/authenticate",
                     {"email": "x", "password": "y"},
@@ -997,7 +997,7 @@ class TestIDKAuthFlow:
 
         auth = IDKAuth(session, BRAND_VW_EU)
         with pytest.raises(RateLimitError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._follow_to_app_redirect(
                     "https://idp/authenticate",
                     {},
@@ -1015,7 +1015,7 @@ class TestIDKAuthFlow:
         session.post = MagicMock(return_value=resp)
 
         auth = IDKAuth(session, BRAND_SKODA)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             auth._follow_to_app_redirect(
                 "https://idp/authenticate",
                 {},
@@ -1059,57 +1059,57 @@ class TestVWEUCommands:
 
     def test_command_lock(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_lock("VIN1"))
+        asyncio.run(client.command_lock("VIN1"))
         client._session.request.assert_called()
 
     def test_command_unlock(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_unlock("VIN1"))
+        asyncio.run(client.command_unlock("VIN1"))
         client._session.request.assert_called()
 
     def test_command_unlock_with_spin(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_unlock("VIN1", spin="1234"))
+        asyncio.run(client.command_unlock("VIN1", spin="1234"))
         client._session.request.assert_called()
 
     def test_command_start_climate(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_start_climate("VIN1"))
+        asyncio.run(client.command_start_climate("VIN1"))
         client._session.request.assert_called()
 
     def test_command_stop_climate(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_stop_climate("VIN1"))
+        asyncio.run(client.command_stop_climate("VIN1"))
         client._session.request.assert_called()
 
     def test_command_start_charging(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_start_charging("VIN1"))
+        asyncio.run(client.command_start_charging("VIN1"))
         client._session.request.assert_called()
 
     def test_command_stop_charging(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_stop_charging("VIN1"))
+        asyncio.run(client.command_stop_charging("VIN1"))
         client._session.request.assert_called()
 
     def test_command_flash(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_flash("VIN1"))
+        asyncio.run(client.command_flash("VIN1"))
         client._session.request.assert_called()
 
     def test_command_wake(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_wake("VIN1"))
+        asyncio.run(client.command_wake("VIN1"))
         client._session.request.assert_called()
 
     def test_command_set_target_soc(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_set_target_soc("VIN1", 90))
+        asyncio.run(client.command_set_target_soc("VIN1", 90))
         client._session.request.assert_called()
 
     def test_command_set_climate_temperature(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(client.command_set_climate_temperature("VIN1", 22.0))
+        asyncio.run(client.command_set_climate_temperature("VIN1", 22.0))
         client._session.request.assert_called()
 
 
@@ -1164,7 +1164,7 @@ class TestVWEUFallbackPaths:
         client, session, idx = self._client_with_responses(responses)
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
-            asyncio.get_event_loop().run_until_complete(client.command_lock("VIN1"))
+            asyncio.run(client.command_lock("VIN1"))
         assert idx["i"] == 2
         urls = [call.args[1] for call in session.request.call_args_list]
         assert "/vehicle/v1/vehicles/VIN1/access/lock-unlock" in urls[0]
@@ -1179,7 +1179,7 @@ class TestVWEUFallbackPaths:
         client, session, idx = self._client_with_responses(responses)
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
-            asyncio.get_event_loop().run_until_complete(client.command_lock("VIN1"))
+            asyncio.run(client.command_lock("VIN1"))
         assert idx["i"] == 3
         urls = [call.args[1] for call in session.request.call_args_list]
         assert urls[0].endswith("/vehicle/v1/vehicles/VIN1/access/lock-unlock")
@@ -1201,7 +1201,7 @@ class TestVWEUFallbackPaths:
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
             with pytest.raises(APIError) as exc:
-                asyncio.get_event_loop().run_until_complete(client.command_lock("VIN1"))
+                asyncio.run(client.command_lock("VIN1"))
         assert exc.value.status == 500
         # The 500 itself is retried 4 times (3 backoff retries inside
         # _request) — that's the existing behaviour. What MUST NOT happen
@@ -1224,7 +1224,7 @@ class TestVWEUFallbackPaths:
         client, session, idx = self._client_with_responses(responses)
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client.command_unlock("VIN1", spin="1234")
             )
         # Inspect payloads: kwargs['json'] on each request
@@ -1277,7 +1277,7 @@ class TestBaseClientRefresh:
         client = VWEUClient(session, "u@t.de", "pw")
         client._tokens = TokenSet("old_acc", "old_ref", "old_id")
 
-        result = asyncio.get_event_loop().run_until_complete(client.get_vehicles())
+        result = asyncio.run(client.get_vehicles())
         assert result == []
 
     def test_authenticate_stores_tokens(self):
@@ -1289,7 +1289,7 @@ class TestBaseClientRefresh:
         mock_tokens.access_token = "fresh_token"
         client._auth.authenticate = AsyncMock(return_value=mock_tokens)
 
-        asyncio.get_event_loop().run_until_complete(client.authenticate())
+        asyncio.run(client.authenticate())
         assert client._tokens.access_token == "fresh_token"
 
 
@@ -1335,7 +1335,7 @@ class TestBaseClientHardening:
         client = self._client_with_session(session)
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 client._request("GET", "https://example.com/api")
             )
         assert result == {"ok": True}
@@ -1367,7 +1367,7 @@ class TestBaseClientHardening:
         client = self._client_with_session(session)
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 client._request("GET", "https://example.com/api")
             )
         assert result == {"recovered": True}
@@ -1383,7 +1383,7 @@ class TestBaseClientHardening:
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
             with pytest.raises(APIError) as exc:
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     client._request("GET", "https://example.com/api")
                 )
         assert exc.value.status == 0
@@ -1401,13 +1401,12 @@ class TestBaseClientHardening:
         # verify the storm guard, not the refresh logic itself.
         client._auth.refresh = AsyncMock(return_value=TokenSet("acc2", "ref2", "id2"))
 
-        loop = asyncio.get_event_loop()
         # First 3 refreshes succeed (within threshold)
         for _ in range(3):
-            loop.run_until_complete(client._refresh_tokens())
+            asyncio.run(client._refresh_tokens())
         # Fourth must raise
         with pytest.raises(AuthenticationError, match="storm"):
-            loop.run_until_complete(client._refresh_tokens())
+            asyncio.run(client._refresh_tokens())
 
     def test_refresh_storm_window_resets_after_age_out(self):
         """Old refresh timestamps must be pruned out of the rolling window."""
@@ -1423,7 +1422,7 @@ class TestBaseClientHardening:
         old = _time.monotonic() - 7200  # 2h ago
         client._refresh_history = [old, old, old, _time.monotonic() - 5]
         # New refresh should succeed (only the recent one survives prune)
-        asyncio.get_event_loop().run_until_complete(client._refresh_tokens())
+        asyncio.run(client._refresh_tokens())
         # History after prune should contain at most 2 entries (the recent
         # one + the brand new one)
         assert len(client._refresh_history) <= 2
@@ -1452,12 +1451,12 @@ class TestSkodaGetStatus:
 
     def test_get_status_returns_vehicle_data(self):
         client = self._client({"status": {"charging": {"state": "CHARGING"}}})
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("TMBTEST"))
+        result = asyncio.run(client.get_status("TMBTEST"))
         assert result.vin == "TMBTEST"
 
     def test_get_status_empty_responses(self):
         client = self._client({})
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("TMB123"))
+        result = asyncio.run(client.get_status("TMB123"))
         assert result.vin == "TMB123"
         assert result.battery_soc is None
 
@@ -1466,9 +1465,9 @@ class TestSkodaGetStatus:
         for cmd in ["lock", "unlock", "start_climate", "stop_climate",
                     "start_charging", "stop_charging", "flash", "wake"]:
             fn = getattr(client, f"command_{cmd}")
-            asyncio.get_event_loop().run_until_complete(fn("TMBTEST"))
-        asyncio.get_event_loop().run_until_complete(client.command_set_target_soc("TMBTEST", 80))
-        asyncio.get_event_loop().run_until_complete(client.command_set_climate_temperature("TMBTEST", 21.0))
+            asyncio.run(fn("TMBTEST"))
+        asyncio.run(client.command_set_target_soc("TMBTEST", 80))
+        asyncio.run(client.command_set_climate_temperature("TMBTEST", 21.0))
 
     def test_skoda_status_with_battery_data(self):
         client = self._client({
@@ -1488,7 +1487,7 @@ class TestSkodaGetStatus:
                 "oilServiceDueInDays": 90,
             },
         })
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("TMB_EV"))
+        result = asyncio.run(client.get_status("TMB_EV"))
         assert result.vin == "TMB_EV"
 
     # ── v1.8.11 Session 3S: connection-state via carCapturedTimestamp ─────
@@ -1531,7 +1530,7 @@ class TestSkodaGetStatus:
         client = self._url_routing_client({
             "/api/v2/vehicle-status/": {"carCapturedTimestamp": recent},
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.connection_state == "online"
         assert result.last_seen_at is not None
@@ -1543,7 +1542,7 @@ class TestSkodaGetStatus:
         client = self._url_routing_client({
             "/api/v2/vehicle-status/": {"carCapturedTimestamp": hours_ago},
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.connection_state == "standby"
 
@@ -1554,7 +1553,7 @@ class TestSkodaGetStatus:
         client = self._url_routing_client({
             "/api/v2/vehicle-status/": {"carCapturedTimestamp": days_ago},
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.connection_state == "offline"
 
@@ -1566,7 +1565,7 @@ class TestSkodaGetStatus:
         client = self._url_routing_client({
             "/api/v2/vehicle-status/": {"overall": {"locked": "YES"}},
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.connection_state is None
         assert result.last_seen_at is None
@@ -1583,7 +1582,7 @@ class TestSkodaGetStatus:
             "/api/v2/vehicle-status/": {"carCapturedTimestamp": old},
             "/api/v1/charging/":       {"carCapturedTimestamp": fresh},
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         # Fresh charging timestamp wins → online
         assert result.connection_state == "online"
@@ -1602,7 +1601,7 @@ class TestSkodaGetStatus:
                 },
             },
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.sunroof_open is True
         assert result.trunk_open is False
@@ -1617,7 +1616,7 @@ class TestSkodaGetStatus:
                 "detail": {"sunroof": "UNSUPPORTED", "trunk": "CLOSED"},
             },
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.sunroof_open is None
         assert result.trunk_open is False
@@ -1634,7 +1633,7 @@ class TestSkodaGetStatus:
                 },
             },
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.doors_locked is True
 
@@ -1655,7 +1654,7 @@ class TestSkodaGetStatus:
                 },
             },
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.charge_complete_eta is not None
         # Absolute timestamp used, NOT now()+99999min
@@ -1676,7 +1675,7 @@ class TestSkodaGetStatus:
                 },
             },
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("TMB_TEST"))
         assert result.charging_state == "CHARGING_INTERRUPTED"
         assert result.is_charging is False  # NOT True
@@ -1706,12 +1705,12 @@ class TestSeatCupraGetStatus:
 
     def test_get_status_cupra(self):
         client = self._client("cupra")
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("VSSZZE1KZLR123456"))
+        result = asyncio.run(client.get_status("VSSZZE1KZLR123456"))
         assert result.vin == "VSSZZE1KZLR123456"
 
     def test_get_status_seat(self):
         client = self._client("seat")
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("VSSZZZ5FZHR123456"))
+        result = asyncio.run(client.get_status("VSSZZZ5FZHR123456"))
         assert result.vin == "VSSZZZ5FZHR123456"
 
     def test_seat_commands(self):
@@ -1722,9 +1721,9 @@ class TestSeatCupraGetStatus:
         for cmd in ["start_climate", "stop_climate",
                     "start_charging", "stop_charging", "wake"]:
             fn = getattr(client, f"command_{cmd}")
-            asyncio.get_event_loop().run_until_complete(fn("VIN_SEAT"))
-        asyncio.get_event_loop().run_until_complete(client.command_set_target_soc("VIN_SEAT", 80))
-        asyncio.get_event_loop().run_until_complete(client.command_set_climate_temperature("VIN_SEAT", 20.0))
+            asyncio.run(fn("VIN_SEAT"))
+        asyncio.run(client.command_set_target_soc("VIN_SEAT", 80))
+        asyncio.run(client.command_set_climate_temperature("VIN_SEAT", 20.0))
 
     def test_seat_lock_unlock_require_spin(self):
         """v1.8.4 (#53): lock/unlock without S-PIN must raise SpinError before any HTTP call."""
@@ -1732,9 +1731,9 @@ class TestSeatCupraGetStatus:
         client = self._client("seat")  # _client() does not configure an S-PIN
 
         with pytest.raises(SpinError):
-            asyncio.get_event_loop().run_until_complete(client.command_lock("VIN_SEAT"))
+            asyncio.run(client.command_lock("VIN_SEAT"))
         with pytest.raises(SpinError):
-            asyncio.get_event_loop().run_until_complete(client.command_unlock("VIN_SEAT"))
+            asyncio.run(client.command_unlock("VIN_SEAT"))
 
     def test_seat_command_flash_resilient_to_missing_position(self):
         """v2.0.0 (#53 Gerhard CUPRA Born): command_flash now tries body
@@ -1748,11 +1747,11 @@ class TestSeatCupraGetStatus:
 
         # Case 1: backend accepts bare body → no error even without position
         client = self._client("seat")
-        asyncio.get_event_loop().run_until_complete(client.command_flash("VIN_SEAT"))
+        asyncio.run(client.command_flash("VIN_SEAT"))
 
         # Case 2: backend accepts bare body → still no error with position
         client = self._client("seat")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_flash("VIN_SEAT", latitude=48.137, longitude=11.576)
         )
 
@@ -1768,13 +1767,13 @@ class TestSeatCupraGetStatus:
         resp_400.__aexit__ = AsyncMock(return_value=False)
         client._session.request = MagicMock(return_value=resp_400)
         with pytest.raises(APIError):
-            asyncio.get_event_loop().run_until_complete(client.command_flash("VIN_SEAT"))
+            asyncio.run(client.command_flash("VIN_SEAT"))
 
     def test_get_vehicles_with_user_id(self):
         client = self._client("cupra", json_data={"vehicles": [
             {"vin": "VSSZZE1KZLR000001"},
         ]})
-        vins = asyncio.get_event_loop().run_until_complete(client.get_vehicles())
+        vins = asyncio.run(client.get_vehicles())
         assert "VSSZZE1KZLR000001" in vins
 
     # ── v1.8.9 Session 3C: OLA /v2/.../status JSON-paths ──────────────────
@@ -1824,7 +1823,7 @@ class TestSeatCupraGetStatus:
             },
         }
         client = self._client_with_url_routing("cupra", {"/v2/vehicles/": status_body})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000001"))
 
         assert result.doors_individual == {
@@ -1848,7 +1847,7 @@ class TestSeatCupraGetStatus:
             },
         }
         client = self._client_with_url_routing("cupra", {"/v2/vehicles/": status_body})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000002"))
 
         assert result.windows_individual == {
@@ -1867,7 +1866,7 @@ class TestSeatCupraGetStatus:
             "hood":  {"open": True},
         }
         client = self._client_with_url_routing("cupra", {"/v2/vehicles/": status_body})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000003"))
 
         assert result.trunk_open is False
@@ -1879,7 +1878,7 @@ class TestSeatCupraGetStatus:
         ``status.windows.sunroof`` because firmware varies."""
         status_body = {"windows": {"sunroof": "open"}}
         client = self._client_with_url_routing("cupra", {"/v2/vehicles/": status_body})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000004"))
         assert result.sunroof_open is True
 
@@ -1905,7 +1904,7 @@ class TestSeatCupraGetStatus:
         # care that the field is parsed when present, not that other
         # endpoints stay untouched. Status endpoint also gets this body
         # but won't write into door fields because there's no `doors` key.
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000006"))
 
         assert result.charging_power_kw == 11.0, "chargedPowerInKw not parsed"
@@ -1921,7 +1920,7 @@ class TestSeatCupraGetStatus:
         client = self._client_with_url_routing("cupra", {
             "/v1/vehicles/": {"targetSoc_pct": 80, "maxChargeCurrentAC": "maximum"},
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000007"))
         assert result.target_soc == 80, "targetSoc_pct (lowercase) not parsed"
 
@@ -1932,7 +1931,7 @@ class TestSeatCupraGetStatus:
         ``status.windows.sunroof``, so Leon owners never saw the entity."""
         status_body = {"sunRoof": "open"}
         client = self._client_with_url_routing("cupra", {"/v2/vehicles/": status_body})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000008"))
         assert result.sunroof_open is True
 
@@ -1943,7 +1942,7 @@ class TestSeatCupraGetStatus:
         ``is_driving=True`` AND ``vehicle_state="DRIVING"``."""
         status_body = {"engine": "on"}
         client = self._client_with_url_routing("cupra", {"/v2/vehicles/": status_body})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000009"))
         assert result.is_driving is True
         assert result.vehicle_state == "DRIVING"
@@ -1953,7 +1952,7 @@ class TestSeatCupraGetStatus:
         coordinator decides between PARKED/CHARGING/OFFLINE elsewhere."""
         status_body = {"engine": "off"}
         client = self._client_with_url_routing("cupra", {"/v2/vehicles/": status_body})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000010"))
         assert result.is_driving is False
         # vehicle_state may be None (default) — important is we don't
@@ -1971,7 +1970,7 @@ class TestSeatCupraGetStatus:
                 "autoUnlockPlugWhenCharged": "permanent",
             },
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000011"))
         assert result.auto_unlock_charge is True
 
@@ -1983,7 +1982,7 @@ class TestSeatCupraGetStatus:
         client = self._client_with_url_routing("cupra", {
             "climatisation": {"status": {"climatisationState": "unsupported"}},
         })
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000012"))
         assert result.climatisation_active is False
 
@@ -2005,7 +2004,7 @@ class TestSeatCupraGetStatus:
             },
         }
         client = self._client_with_url_routing("cupra", {"/v2/vehicles/": status_body})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_status("VSSZZE1KZLR000005"))
 
         # New-shape parsing produces nothing → legacy fallback fires
@@ -2038,7 +2037,7 @@ class TestSeatCupraGetStatus:
         client._tokens = TokenSet("acc", "ref", "id")
         client._user_id = None
 
-        asyncio.get_event_loop().run_until_complete(client._fetch_user_id())
+        asyncio.run(client._fetch_user_id())
         assert client._user_id == "seat_user_456"
 
     def test_status_with_kelvin_temperature(self):
@@ -2047,7 +2046,7 @@ class TestSeatCupraGetStatus:
             "status": {"climatisationState": "HEATING"},
             "settings": {"targetTemperature_K": 294.15},  # 21°C
         })
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("CUPRA_VIN"))
+        result = asyncio.run(client.get_status("CUPRA_VIN"))
         if result.target_temperature is not None:
             assert abs(result.target_temperature - 21.0) < 0.2
 
@@ -2107,12 +2106,12 @@ class TestCoordinatorCariad:
 
         with patch.object(CariadClientFactory, "create", return_value=mock_client),              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
             with pytest.raises(ValueError, match="invalid_credentials"):
-                asyncio.get_event_loop().run_until_complete(coord.async_setup())
+                asyncio.run(coord.async_setup())
 
     def test_async_shutdown_sets_started_false(self):
         coord = self._make_coord()
         coord._started = True
-        asyncio.get_event_loop().run_until_complete(coord.async_shutdown())
+        asyncio.run(coord.async_shutdown())
         assert coord._started is False
         assert coord._cariad_client is None
 
@@ -2121,7 +2120,7 @@ class TestCoordinatorCariad:
         coord = self._make_coord()
         coord._started = False
         # Should return immediately without making any API calls
-        asyncio.get_event_loop().run_until_complete(coord._poll_loop())
+        asyncio.run(coord._poll_loop())
 
 
 # ── Coordinator async_setup full paths ────────────────────────────────────────
@@ -2168,7 +2167,7 @@ class TestCoordinatorAsyncSetup:
         client = self._mock_client()
         with patch.object(CariadClientFactory, "create", return_value=client), \
              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
-            result = asyncio.get_event_loop().run_until_complete(coord.async_setup())
+            result = asyncio.run(coord.async_setup())
         assert result is True
         assert coord._started is True
         assert "VIN123" in coord.vehicles
@@ -2181,7 +2180,7 @@ class TestCoordinatorAsyncSetup:
         client.get_vehicles = AsyncMock(return_value=[])
         with patch.object(CariadClientFactory, "create", return_value=client), \
              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
-            result = asyncio.get_event_loop().run_until_complete(coord.async_setup())
+            result = asyncio.run(coord.async_setup())
         assert result is False
         client.get_status.assert_not_called()
 
@@ -2194,7 +2193,7 @@ class TestCoordinatorAsyncSetup:
         with patch.object(CariadClientFactory, "create", return_value=client), \
              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
             with pytest.raises(ValueError, match="terms_and_conditions"):
-                asyncio.get_event_loop().run_until_complete(coord.async_setup())
+                asyncio.run(coord.async_setup())
 
     def test_async_setup_rate_limit_error(self):
         from custom_components.vag_connect.cariad.api.factory import CariadClientFactory
@@ -2205,7 +2204,7 @@ class TestCoordinatorAsyncSetup:
         with patch.object(CariadClientFactory, "create", return_value=client), \
              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
             with pytest.raises(ValueError, match="too_many_requests"):
-                asyncio.get_event_loop().run_until_complete(coord.async_setup())
+                asyncio.run(coord.async_setup())
 
     def test_async_setup_marketing_consent_error(self):
         from custom_components.vag_connect.cariad.api.factory import CariadClientFactory
@@ -2216,7 +2215,7 @@ class TestCoordinatorAsyncSetup:
         with patch.object(CariadClientFactory, "create", return_value=client), \
              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
             with pytest.raises(ValueError, match="marketing_consent"):
-                asyncio.get_event_loop().run_until_complete(coord.async_setup())
+                asyncio.run(coord.async_setup())
 
     def test_async_setup_two_factor_error(self):
         from custom_components.vag_connect.cariad.api.factory import CariadClientFactory
@@ -2227,7 +2226,7 @@ class TestCoordinatorAsyncSetup:
         with patch.object(CariadClientFactory, "create", return_value=client), \
              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
             with pytest.raises(ValueError, match="two_factor_required"):
-                asyncio.get_event_loop().run_until_complete(coord.async_setup())
+                asyncio.run(coord.async_setup())
 
     def test_async_setup_generic_error_returns_false(self):
         from custom_components.vag_connect.cariad.api.factory import CariadClientFactory
@@ -2236,7 +2235,7 @@ class TestCoordinatorAsyncSetup:
         client.authenticate = AsyncMock(side_effect=ConnectionError("network down"))
         with patch.object(CariadClientFactory, "create", return_value=client), \
              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
-            result = asyncio.get_event_loop().run_until_complete(coord.async_setup())
+            result = asyncio.run(coord.async_setup())
         assert result is False
 
     def test_async_setup_partial_status_errors(self):
@@ -2251,7 +2250,7 @@ class TestCoordinatorAsyncSetup:
         client.get_status = AsyncMock(side_effect=[vin_ok, Exception("timeout")])
         with patch.object(CariadClientFactory, "create", return_value=client), \
              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
-            result = asyncio.get_event_loop().run_until_complete(coord.async_setup())
+            result = asyncio.run(coord.async_setup())
         assert result is True
         assert "VIN_OK" in coord.vehicles
         assert "VIN_FAIL" not in coord.vehicles
@@ -2260,7 +2259,7 @@ class TestCoordinatorAsyncSetup:
         coord = self._coord()
         coord._started = True
         coord._cariad_client = MagicMock()
-        asyncio.get_event_loop().run_until_complete(coord.async_shutdown())
+        asyncio.run(coord.async_shutdown())
         assert coord._started is False
         assert coord._cariad_client is None
 
@@ -2293,7 +2292,7 @@ class TestPollLoop:
         """_poll_loop returns immediately when _started=False."""
         coord = self._coord()
         coord._started = False
-        asyncio.get_event_loop().run_until_complete(coord._poll_loop())
+        asyncio.run(coord._poll_loop())
         coord._cariad_client.get_status.assert_not_awaited()
 
     def test_poll_loop_one_iteration(self):
@@ -2333,7 +2332,7 @@ class TestPollLoop:
                 coord.vehicles.update(fresh)
             await coord._async_push_update(fresh, success=True)
 
-        asyncio.get_event_loop().run_until_complete(one_iteration())
+        asyncio.run(one_iteration())
         coord._cariad_client.get_status.assert_awaited()
         assert coord.vehicles["VIN1"].get("battery_soc") == 80
 
@@ -2359,7 +2358,7 @@ class TestPollLoop:
                     fresh[vin] = data
             await coord._async_push_update(fresh, success=True)
 
-        asyncio.get_event_loop().run_until_complete(one_error_iteration())
+        asyncio.run(one_error_iteration())
         coord._async_push_update.assert_awaited()
         # VIN1 should fall back to cached (empty) data
         assert "VIN1" in coord.vehicles
@@ -2404,17 +2403,17 @@ class TestCariadCmd:
         coord = self._coord()
         coord._cariad_client = None
         # Should not raise, just log
-        asyncio.get_event_loop().run_until_complete(coord._cariad_cmd("VIN1", "command_lock"))
+        asyncio.run(coord._cariad_cmd("VIN1", "command_lock"))
 
     def test_cariad_cmd_lock(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(coord._cariad_cmd("VIN1", "command_lock"))
+        asyncio.run(coord._cariad_cmd("VIN1", "command_lock"))
         coord._cariad_client.command_lock.assert_awaited_once_with("VIN1")
         coord.async_request_refresh.assert_awaited()
 
     def test_cariad_cmd_set_soc(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord._cariad_cmd("VIN1", "command_set_target_soc", target=80)
         )
         coord._cariad_client.command_set_target_soc.assert_awaited_once_with("VIN1", target=80)
@@ -2423,40 +2422,40 @@ class TestCariadCmd:
         coord = self._coord()
         coord._cariad_client.command_lock = AsyncMock(side_effect=RuntimeError("API down"))
         with pytest.raises(RuntimeError, match="API down"):
-            asyncio.get_event_loop().run_until_complete(coord._cariad_cmd("VIN1", "command_lock"))
+            asyncio.run(coord._cariad_cmd("VIN1", "command_lock"))
 
     def test_async_lock(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_lock("VIN1"))
+        asyncio.run(coord.async_lock("VIN1"))
         coord._cariad_client.command_lock.assert_awaited()
 
     def test_async_unlock_passes_spin(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_unlock("VIN1"))
+        asyncio.run(coord.async_unlock("VIN1"))
         coord._cariad_client.command_unlock.assert_awaited_with("VIN1", spin="1234")
 
     def test_async_set_target_soc(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_set_target_soc("VIN1", 90))
+        asyncio.run(coord.async_set_target_soc("VIN1", 90))
         coord._cariad_client.command_set_target_soc.assert_awaited_with("VIN1", target=90)
 
     def test_async_set_climate_temp(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_set_climatisation_temperature("VIN1", 22.0)
         )
         coord._cariad_client.command_set_climate_temperature.assert_awaited_with("VIN1", temp_c=22.0)
 
     def test_async_wake_vehicle(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VIN1"))
+        asyncio.run(coord.async_wake_vehicle("VIN1"))
         coord._cariad_client.command_wake.assert_awaited()
 
     def test_async_start_stop_window_heating(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_start_window_heating("VIN1"))
+        asyncio.run(coord.async_start_window_heating("VIN1"))
         coord._cariad_client.command_start_window_heating.assert_awaited()
-        asyncio.get_event_loop().run_until_complete(coord.async_stop_window_heating("VIN1"))
+        asyncio.run(coord.async_stop_window_heating("VIN1"))
         coord._cariad_client.command_stop_window_heating.assert_awaited()
 
 
@@ -2526,7 +2525,7 @@ class TestRegisterServices:
 
         call = MagicMock()
         call.data = {"vin": vin}
-        asyncio.get_event_loop().run_until_complete(registered[("vag_connect", "lock")](call))
+        asyncio.run(registered[("vag_connect", "lock")](call))
         coord._cariad_client.command_lock.assert_awaited()
 
     def test_handle_unlock_calls_coordinator(self):
@@ -2536,7 +2535,7 @@ class TestRegisterServices:
 
         call = MagicMock()
         call.data = {"vin": vin}
-        asyncio.get_event_loop().run_until_complete(registered[("vag_connect", "unlock")](call))
+        asyncio.run(registered[("vag_connect", "unlock")](call))
         coord._cariad_client.command_unlock.assert_awaited()
 
     def test_handle_start_climatisation(self):
@@ -2545,7 +2544,7 @@ class TestRegisterServices:
         _register_services(hass)
         call = MagicMock()
         call.data = {"vin": vin}
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "start_climatisation")](call))
         coord._cariad_client.command_start_climate.assert_awaited()
 
@@ -2555,7 +2554,7 @@ class TestRegisterServices:
         _register_services(hass)
         call = MagicMock()
         call.data = {"vin": vin}
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "stop_climatisation")](call))
         coord._cariad_client.command_stop_climate.assert_awaited()
 
@@ -2565,7 +2564,7 @@ class TestRegisterServices:
         _register_services(hass)
         call = MagicMock()
         call.data = {"vin": vin}
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "start_charging")](call))
         coord._cariad_client.command_start_charging.assert_awaited()
 
@@ -2575,7 +2574,7 @@ class TestRegisterServices:
         _register_services(hass)
         call = MagicMock()
         call.data = {"vin": vin}
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "stop_charging")](call))
         coord._cariad_client.command_stop_charging.assert_awaited()
 
@@ -2585,7 +2584,7 @@ class TestRegisterServices:
         _register_services(hass)
         call = MagicMock()
         call.data = {"vin": vin}
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "flash_lights")](call))
         coord._cariad_client.command_flash.assert_awaited()
 
@@ -2595,7 +2594,7 @@ class TestRegisterServices:
         _register_services(hass)
         call = MagicMock()
         call.data = {"vin": vin}
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "wake_vehicle")](call))
         coord._cariad_client.command_wake.assert_awaited()
 
@@ -2605,7 +2604,7 @@ class TestRegisterServices:
         _register_services(hass)
         call = MagicMock()
         call.data = {"vin": vin, "target": 80}
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "set_target_soc")](call))
         coord._cariad_client.command_set_target_soc.assert_awaited()
 
@@ -2615,7 +2614,7 @@ class TestRegisterServices:
         _register_services(hass)
         call = MagicMock()
         call.data = {"vin": vin, "temperature": 21.5}
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "set_climatisation_temperature")](call))
         coord._cariad_client.command_set_climate_temperature.assert_awaited()
 
@@ -2626,7 +2625,7 @@ class TestRegisterServices:
         call = MagicMock()
         data_dict = {"vin": vin, "timer_id": 1, "enabled": True, "departure_time": "07:30"}
         call.data = data_dict
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "set_departure_timer")](call))
         coord.async_request_refresh.assert_awaited()
 
@@ -2634,7 +2633,7 @@ class TestRegisterServices:
         from custom_components.vag_connect import _register_services
         hass, coord, registered, vin = self._hass_with_entry()
         _register_services(hass)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             registered[("vag_connect", "refresh_vehicle")](MagicMock()))
         coord.async_request_refresh.assert_awaited()
 
@@ -2648,7 +2647,7 @@ class TestRegisterServices:
         call = MagicMock()
         call.data = {"vin": "NOTEXIST"}
         with pytest.raises(ServiceValidationError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 registered[("vag_connect", "lock")](call))
 
 
@@ -2706,7 +2705,7 @@ class TestAsyncPushUpdate:
 
     def test_push_update_success(self):
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord._async_push_update({"VIN1": {}}, success=True)
         )
         coord.async_set_updated_data.assert_called()
@@ -2714,7 +2713,7 @@ class TestAsyncPushUpdate:
     def test_push_update_failure_logs_once(self):
         coord = self._coord()
         coord._was_available = True
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord._async_push_update({}, success=False)
         )
         assert coord._was_available is False
@@ -2722,7 +2721,7 @@ class TestAsyncPushUpdate:
     def test_push_update_failure_doesnt_log_twice(self):
         coord = self._coord()
         coord._was_available = False  # already unavailable
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord._async_push_update({}, success=False)
         )
         # Should not log again (was_available stays False)
@@ -2731,7 +2730,7 @@ class TestAsyncPushUpdate:
     def test_push_update_recovery_logs(self):
         coord = self._coord()
         coord._was_available = False  # was unavailable
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord._async_push_update({"VIN1": {}}, success=True)
         )
         assert coord._was_available is True
@@ -2759,7 +2758,7 @@ class TestAsyncUpdateData:
     def test_returns_cached_when_no_client(self):
         coord = self._coord()
         coord._cariad_client = None
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             coord._async_update_data()
         )
         assert "VIN1" in result
@@ -2767,14 +2766,14 @@ class TestAsyncUpdateData:
     def test_returns_cached_when_not_started(self):
         coord = self._coord()
         coord._started = False
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             coord._async_update_data()
         )
         assert "VIN1" in result
 
     def test_fetches_fresh_data(self):
         coord = self._coord()
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             coord._async_update_data()
         )
         coord._cariad_client.get_status.assert_awaited()
@@ -2805,7 +2804,7 @@ class TestIDKAuthAdditional:
         session.post = MagicMock(return_value=resp)
         auth = IDKAuth(session, BRAND_VW_EU)
         with pytest.raises(TermsAndConditionsError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._follow_to_app_redirect("https://idp/auth", {}, "weconnect://authenticated")
             )
 
@@ -2820,7 +2819,7 @@ class TestIDKAuthAdditional:
         session.post = MagicMock(return_value=resp)
         auth = IDKAuth(session, BRAND_VW_EU)
         with pytest.raises(MarketingConsentError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._follow_to_app_redirect("https://idp/auth", {}, "weconnect://authenticated")
             )
 
@@ -2837,7 +2836,7 @@ class TestIDKAuthAdditional:
         session.get = MagicMock(return_value=resp_get)
         auth = IDKAuth(session, BRAND_AUDI)
         with pytest.raises(MarketingConsentError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._follow_to_app_redirect("https://idp/auth", {}, "myaudi:///")
             )
 
@@ -2858,7 +2857,7 @@ class TestIDKAuthAdditional:
         session.post = MagicMock(return_value=bad)
         auth = IDKAuth(session, BRAND_SKODA)
         with pytest.raises(UpstreamUnavailableError, match="503"):
-            asyncio.get_event_loop().run_until_complete(auth.refresh("old_token"))
+            asyncio.run(auth.refresh("old_token"))
 
     def test_refresh_non_200_non_5xx_raises_auth(self):
         """A non-200 that is neither 400 nor a 5xx (e.g. 401) is still a genuine
@@ -2874,7 +2873,7 @@ class TestIDKAuthAdditional:
         session.post = MagicMock(return_value=bad)
         auth = IDKAuth(session, BRAND_SKODA)
         with pytest.raises(AuthenticationError, match="401"):
-            asyncio.get_event_loop().run_until_complete(auth.refresh("old_token"))
+            asyncio.run(auth.refresh("old_token"))
 
     def test_idk_auth_hmac_extraction_from_js(self):
         """CSRF parser falls back to regex for JavaScript-injected hmac."""
@@ -2909,62 +2908,62 @@ class TestBaseClientAbstract:
     def test_get_vehicles_raises_not_implemented(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.get_vehicles())
+            asyncio.run(client.get_vehicles())
 
     def test_get_status_raises_not_implemented(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.get_status("VIN1"))
+            asyncio.run(client.get_status("VIN1"))
 
     def test_command_lock_raises_not_implemented(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_lock("VIN1"))
+            asyncio.run(client.command_lock("VIN1"))
 
     def test_command_unlock_raises_not_implemented(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_unlock("VIN1"))
+            asyncio.run(client.command_unlock("VIN1"))
 
     def test_command_start_climate_raises(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_start_climate("VIN1"))
+            asyncio.run(client.command_start_climate("VIN1"))
 
     def test_command_stop_climate_raises(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_stop_climate("VIN1"))
+            asyncio.run(client.command_stop_climate("VIN1"))
 
     def test_command_start_charging_raises(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_start_charging("VIN1"))
+            asyncio.run(client.command_start_charging("VIN1"))
 
     def test_command_stop_charging_raises(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_stop_charging("VIN1"))
+            asyncio.run(client.command_stop_charging("VIN1"))
 
     def test_command_flash_raises(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_flash("VIN1"))
+            asyncio.run(client.command_flash("VIN1"))
 
     def test_command_wake_raises(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_wake("VIN1"))
+            asyncio.run(client.command_wake("VIN1"))
 
     def test_command_set_target_soc_raises(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_set_target_soc("VIN1", 80))
+            asyncio.run(client.command_set_target_soc("VIN1", 80))
 
     def test_command_set_climate_temperature_raises(self):
         client = self._base_client()
         with pytest.raises(NotImplementedError):
-            asyncio.get_event_loop().run_until_complete(client.command_set_climate_temperature("VIN1", 21.0))
+            asyncio.run(client.command_set_climate_temperature("VIN1", 21.0))
 
     def test_brand_property(self):
         client = self._base_client()
@@ -3016,7 +3015,7 @@ class TestAsyncSetupEntry:
 
         with patch("custom_components.vag_connect.VagConnectCoordinator", return_value=mock_coord):
             with pytest.raises(ConfigEntryAuthFailed):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     async_setup_entry(hass, entry)
                 )
 
@@ -3034,7 +3033,7 @@ class TestAsyncSetupEntry:
 
         with patch("custom_components.vag_connect.VagConnectCoordinator", return_value=mock_coord):
             with pytest.raises(ConfigEntryNotReady):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     async_setup_entry(hass, entry)
                 )
 
@@ -3052,7 +3051,7 @@ class TestAsyncSetupEntry:
 
         with patch("custom_components.vag_connect.VagConnectCoordinator", return_value=mock_coord):
             with pytest.raises(ConfigEntryNotReady, match="No vehicles"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     async_setup_entry(hass, entry)
                 )
 
@@ -3070,7 +3069,7 @@ class TestAsyncSetupEntry:
 
         with patch("custom_components.vag_connect.VagConnectCoordinator", return_value=mock_coord), \
              patch("custom_components.vag_connect.repairs.clear_auth_issues"):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 async_setup_entry(hass, entry)
             )
         assert result is True
@@ -3089,7 +3088,7 @@ class TestAsyncSetupEntry:
 
         with patch("custom_components.vag_connect.VagConnectCoordinator", return_value=mock_coord):
             with pytest.raises(ConfigEntryNotReady):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     async_setup_entry(hass, entry)
                 )
 
@@ -3111,7 +3110,7 @@ class TestAsyncUnloadEntry:
         entry = MagicMock()
         entry.runtime_data = coord
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             async_unload_entry(hass, entry)
         )
         assert result is True
@@ -3131,7 +3130,7 @@ class TestAsyncUnloadEntry:
         entry = MagicMock()
         entry.runtime_data = coord
 
-        asyncio.get_event_loop().run_until_complete(async_unload_entry(hass, entry))
+        asyncio.run(async_unload_entry(hass, entry))
         hass.services.async_remove.assert_called()
 
 
@@ -3183,7 +3182,7 @@ class TestPollLoopDirect:
             # do NOT set _started=False here — let the fetch happen first
 
         with patch("asyncio.sleep", side_effect=mock_sleep):
-            asyncio.get_event_loop().run_until_complete(coord._poll_loop())
+            asyncio.run(coord._poll_loop())
 
         assert len(sleep_called) == 1
         assert get_status_call_count[0] == 1
@@ -3205,7 +3204,7 @@ class TestPollLoopDirect:
             pass  # don't stop here
 
         with patch("asyncio.sleep", side_effect=mock_sleep):
-            asyncio.get_event_loop().run_until_complete(coord._poll_loop())
+            asyncio.run(coord._poll_loop())
 
         # Should not propagate, just log
         assert "VIN1" in coord.vehicles
@@ -3229,7 +3228,7 @@ class TestPollLoopDirect:
             coord._started = False
 
         with patch("asyncio.sleep", side_effect=mock_sleep):
-            asyncio.get_event_loop().run_until_complete(coord._poll_loop())
+            asyncio.run(coord._poll_loop())
 
         # VIN_OK should be updated, VIN_ERR should have cached
         assert coord.vehicles.get("VIN_ERR", {}).get("old") is True
@@ -3250,7 +3249,7 @@ class TestCoordinatorShutdown:
         coord._was_available = True
         coord.vehicles = {}
 
-        asyncio.get_event_loop().run_until_complete(coord.async_shutdown())
+        asyncio.run(coord.async_shutdown())
         assert coord._started is False
         assert coord._cariad_client is None
 
@@ -3298,7 +3297,7 @@ class TestVWEUStatusAdditional:
                 "climatisationSettings": {"value": {"targetTemperature_C": 22.0}},
             }
         })
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("VIN_HEAT"))
+        result = asyncio.run(client.get_status("VIN_HEAT"))
         assert result.window_heating_front is True
         assert result.window_heating_back is False
 
@@ -3309,7 +3308,7 @@ class TestVWEUStatusAdditional:
                 "odometerStatus": {"value": {"odometer": 45000}},
             }
         })
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("VIN_DIESEL"))
+        result = asyncio.run(client.get_status("VIN_DIESEL"))
         assert result.adblue_range_km == 4500
 
     def test_get_status_charge_eta(self):
@@ -3324,7 +3323,7 @@ class TestVWEUStatusAdditional:
                 "chargingSettings": {"value": {}},
             }
         })
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("VIN_CHG"))
+        result = asyncio.run(client.get_status("VIN_CHG"))
         assert result.charge_complete_eta is not None
         assert result.is_charging is True
 
@@ -3336,7 +3335,7 @@ class TestVWEUStatusAdditional:
                 {"enabled": True,  "departureTime": {"time": "08:30"}},
             ]}}},
         })
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("VIN_T"))
+        result = asyncio.run(client.get_status("VIN_T"))
         assert result.departure_timer_1_enabled is True
         assert result.departure_timer_2_enabled is False
         assert result.departure_timer_3_enabled is True
@@ -3350,7 +3349,7 @@ class TestVWEUStatusAdditional:
                 }},
             }
         })
-        result = asyncio.get_event_loop().run_until_complete(client.get_status("VIN_BAT"))
+        result = asyncio.run(client.get_status("VIN_BAT"))
         assert result.battery_temp is not None
         assert abs(result.battery_temp - 30.0) < 0.2
 
@@ -3376,7 +3375,7 @@ class TestAudiClientAdditional:
 
         client = AudiClient(session, "u@t.de", "pw")
         client._tokens = TokenSet("acc", "ref", "id")
-        vins = asyncio.get_event_loop().run_until_complete(client.get_vehicles())
+        vins = asyncio.run(client.get_vehicles())
         assert "WAUZZZ4G5KN000001" in vins
 
 
@@ -3411,7 +3410,7 @@ class TestIDKRedirectChain:
         session.get = MagicMock(return_value=get_resp)
 
         auth = IDKAuth(session, BRAND_VW_EU)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             auth._follow_to_app_redirect(
                 "https://idp/authenticate", {}, "weconnect://authenticated"
             )
@@ -3430,7 +3429,7 @@ class TestIDKRedirectChain:
         session.post = MagicMock(return_value=resp)
         auth = IDKAuth(session, BRAND_AUDI)
         with pytest.raises(TwoFactorRequiredError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._follow_to_app_redirect("https://idp/auth", {}, "myaudi:///")
             )
 
@@ -3445,7 +3444,7 @@ class TestIDKRedirectChain:
         session.post = MagicMock(return_value=resp)
         auth = IDKAuth(session, BRAND_SKODA)
         with pytest.raises(TwoFactorRequiredError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._follow_to_app_redirect("https://idp/auth", {}, "myskoda://redirect/login/")
             )
 
@@ -3460,7 +3459,7 @@ class TestIDKRedirectChain:
         session.post = MagicMock(return_value=resp)
         auth = IDKAuth(session, BRAND_VW_EU)
         with pytest.raises(AuthenticationError, match="non-redirect"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 auth._follow_to_app_redirect("https://idp/auth", {}, "weconnect://authenticated")
             )
 
@@ -3476,7 +3475,7 @@ class TestIDKRedirectChain:
         session.get = MagicMock(return_value=get_resp)
 
         auth = IDKAuth(session, BRAND_SEAT)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             auth._follow_to_app_redirect("https://idp/auth", {}, "seat://oauth-callback")
         )
         assert result is None
@@ -3492,7 +3491,7 @@ class TestIDKRedirectChain:
         session.get = MagicMock()  # should not be called
 
         auth = IDKAuth(session, BRAND_CUPRA)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             auth._follow_to_app_redirect("https://idp/auth", {}, "cupra://oauth-callback")
         )
         assert result is not None
@@ -3533,7 +3532,7 @@ class TestStaleDevices:
         mock_reg.async_remove_device = MagicMock()
 
         with patch("homeassistant.helpers.device_registry.async_get", return_value=mock_reg):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 coord._async_remove_stale_devices({"VIN_KEEP"})
             )
 
@@ -3544,7 +3543,7 @@ class TestStaleDevices:
         coord = self._coord()
         coord.data = None  # First run
 
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord._async_remove_stale_devices({"VIN1"})
         )
         # No exception → passes
@@ -3558,7 +3557,7 @@ class TestStaleDevices:
         mock_reg.async_get_device = MagicMock(return_value=None)  # not found
 
         with patch("homeassistant.helpers.device_registry.async_get", return_value=mock_reg):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 coord._async_remove_stale_devices(set())
             )
         mock_reg.async_remove_device.assert_not_called()
@@ -3583,7 +3582,7 @@ class TestAsyncUpdateDataErrorPath:
 
     def test_error_returns_cached(self):
         coord = self._coord()
-        result = asyncio.get_event_loop().run_until_complete(coord._async_update_data())
+        result = asyncio.run(coord._async_update_data())
         assert "VIN1" in result
         assert result["VIN1"]["battery_soc"] == 75
 
@@ -3618,7 +3617,7 @@ class TestSwitchAdditional:
         sw = VagWindowHeatingSwitch.__new__(VagWindowHeatingSwitch)
         sw.coordinator = coord
         sw._vin = "VIN1"
-        asyncio.get_event_loop().run_until_complete(sw.async_turn_on())
+        asyncio.run(sw.async_turn_on())
         coord._cariad_client.command_start_window_heating.assert_awaited()
 
     def test_window_heating_switch_turn_off(self):
@@ -3627,7 +3626,7 @@ class TestSwitchAdditional:
         sw = VagWindowHeatingSwitch.__new__(VagWindowHeatingSwitch)
         sw.coordinator = coord
         sw._vin = "VIN1"
-        asyncio.get_event_loop().run_until_complete(sw.async_turn_off())
+        asyncio.run(sw.async_turn_off())
         coord._cariad_client.command_stop_window_heating.assert_awaited()
 
     # VagSeatHeatingSwitch + VagAutoUnlockSwitch removed in v1.8.0 (#60).
@@ -3674,7 +3673,7 @@ class TestFinalCoverageLines:
 
         async def mock_sleep(secs): pass
         with patch("asyncio.sleep", side_effect=mock_sleep):
-            asyncio.get_event_loop().run_until_complete(coord._poll_loop())
+            asyncio.run(coord._poll_loop())
 
         # First push (success=True) raised → except called push with success=False
         assert True in push_calls
@@ -3692,7 +3691,7 @@ class TestFinalCoverageLines:
         coord._cariad_client = MagicMock()
         coord._was_available = True
         coord.vehicles = {}
-        asyncio.get_event_loop().run_until_complete(coord.async_shutdown())
+        asyncio.run(coord.async_shutdown())
         assert coord._started is False
         assert coord._cariad_client is None
 
@@ -3720,7 +3719,7 @@ class TestFinalCoverageLines:
         add_entities = MagicMock()
         hass = MagicMock()
 
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(hass, entry, add_entities)
         )
         add_entities.assert_called()
@@ -3735,7 +3734,7 @@ class TestFinalCoverageLines:
         entry.runtime_data = coord
         add_entities = MagicMock()
 
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, add_entities)
         )
         add_entities.assert_called()
@@ -3750,7 +3749,7 @@ class TestFinalCoverageLines:
         entry.runtime_data = coord
         add_entities = MagicMock()
 
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, add_entities)
         )
         add_entities.assert_called()
@@ -3774,7 +3773,6 @@ class TestTokenstorePath:
         """
         import pytest
         pytest.skip("_tokenstore_path() not implemented in coordinator yet")
-        assert path.endswith(".json")
 
 
 # ── Issue #15: Vehicle render images via GraphQL ─────────────────────────────
@@ -4036,7 +4034,7 @@ class TestCapabilitiesCacheTTL:
         """No CARIAD client → must not crash, must not write the cache."""
         import asyncio
         coord = self._coord()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_capabilities("VIN1")
         )
         assert coord.vehicle_capabilities == {}
@@ -4050,7 +4048,7 @@ class TestCapabilitiesCacheTTL:
         coord._cariad_client.get_capabilities = AsyncMock(
             side_effect=RuntimeError("network down"),
         )
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_capabilities("VIN1")
         )
         assert coord.vehicle_capabilities == {}
@@ -4063,7 +4061,7 @@ class TestCapabilitiesCacheTTL:
         coord._cariad_client.get_capabilities = AsyncMock(
             return_value={"capabilities": [{"id": "honk-and-flash"}]},
         )
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_capabilities("VIN1")
         )
         assert "VIN1" in coord.vehicle_capabilities
@@ -4078,12 +4076,12 @@ class TestCapabilitiesCacheTTL:
         coord._cariad_client = AsyncMock()
         coord._cariad_client.get_capabilities = AsyncMock(return_value={"x": 1})
         # Not forced → client should not be called
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_capabilities("VIN1")
         )
         coord._cariad_client.get_capabilities.assert_not_called()
         # Forced → client is called
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_capabilities("VIN1", force=True)
         )
         coord._cariad_client.get_capabilities.assert_called_once_with("VIN1")
@@ -4185,7 +4183,7 @@ class TestButtonCapabilityGating:
         # ConfigEntry passed into ``async_setup_entry``. Sync them.
         coord.entry.data = {"brand": brand}
         added: list = []
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), self._entry(coord, brand), added.extend)
         )
         return added
@@ -4273,7 +4271,7 @@ class TestSeatCupraSecTokenFlow:
     def test_get_sec_token_calls_verify_endpoint(self):
         import asyncio
         client = self._client()
-        token = asyncio.get_event_loop().run_until_complete(
+        token = asyncio.run(
             client._get_sec_token("1234")
         )
         assert token == "TOK_ABC"
@@ -4287,7 +4285,7 @@ class TestSeatCupraSecTokenFlow:
         from custom_components.vag_connect.cariad.exceptions import SpinError
         client = self._client(spin="")
         with pytest.raises(SpinError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client._get_sec_token("")
             )
 
@@ -4300,7 +4298,7 @@ class TestSeatCupraSecTokenFlow:
         client = self._client()
         client._post = AsyncMock(side_effect=APIError(400, "x", "wrong pin"))
         with pytest.raises(SpinError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client._get_sec_token("1234")
             )
 
@@ -4312,7 +4310,7 @@ class TestSeatCupraSecTokenFlow:
         client = self._client()
         client._post = AsyncMock(return_value={"unexpected": "field"})
         with pytest.raises(SpinError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client._get_sec_token("1234")
             )
 
@@ -4323,7 +4321,7 @@ class TestSeatCupraSecTokenFlow:
         # Two calls: spin/verify + access/lock. Mock _post to handle both.
         verify_resp = {"securityToken": "TOK_LOCK"}
         client._post = AsyncMock(side_effect=[verify_resp, None])
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_lock("VINX")
         )
         # First call = spin/verify
@@ -4340,7 +4338,7 @@ class TestSeatCupraSecTokenFlow:
         client = self._client()
         verify_resp = {"securityToken": "TOK_UNL"}
         client._post = AsyncMock(side_effect=[verify_resp, None])
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_unlock("VINX", spin="9999")
         )
         # spin/verify uses the kwarg-supplied PIN, not self._spin
@@ -4360,7 +4358,7 @@ class TestCariadBffGetCapabilities:
         from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
         client = VWEUClient.__new__(VWEUClient)
         client._get = AsyncMock(return_value={"capabilities": [{"id": "x"}]})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_capabilities("VINY")
         )
         assert result == {"capabilities": [{"id": "x"}]}
@@ -4374,7 +4372,7 @@ class TestCariadBffGetCapabilities:
         from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
         client = VWEUClient.__new__(VWEUClient)
         client._get = AsyncMock(return_value=["unexpected list"])
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_capabilities("VIN")
         )
         assert result == {}
@@ -4384,7 +4382,7 @@ class TestCariadBffGetCapabilities:
         import asyncio
         from custom_components.vag_connect.cariad.api.porsche import PorscheClient
         client = PorscheClient.__new__(PorscheClient)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_capabilities("VIN")
         )
         assert result == {}
@@ -4393,7 +4391,7 @@ class TestCariadBffGetCapabilities:
         import asyncio
         from custom_components.vag_connect.cariad.api.vw_na import VWNAClient
         client = VWNAClient.__new__(VWNAClient)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_capabilities("VIN")
         )
         assert result == {}
@@ -4478,7 +4476,7 @@ class TestVWEUv1v2Fallback:
         from unittest.mock import AsyncMock
         client = self._client()
         client._post = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_set_target_soc("VIN1", 80)
         )
         assert client._post.call_count == 1
@@ -4495,7 +4493,7 @@ class TestVWEUv1v2Fallback:
             APIError(404, "/v1/...", "Not Found"),
             None,
         ])
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_set_target_soc("VIN_AUDI", 80)
         )
         assert client._post.call_count == 2
@@ -4510,7 +4508,7 @@ class TestVWEUv1v2Fallback:
         client = self._client()
         client._v2_command_paths = {"VIN_AUDI": True}
         client._post = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_set_climate_temperature("VIN_AUDI", 21.0)
         )
         assert client._post.call_count == 1
@@ -4525,7 +4523,7 @@ class TestVWEUv1v2Fallback:
         client = self._client()
         client._post = AsyncMock(side_effect=APIError(500, "/v1/...", "Server Error"))
         with pytest.raises(APIError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client.command_set_target_soc("VIN1", 80)
             )
         assert client._post.call_count == 1  # no v2 retry
@@ -4539,7 +4537,7 @@ class TestVWEUv1v2Fallback:
         client = self._client()
         # VIN_A: v1 works
         client._post = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_set_target_soc("VIN_A", 80)
         )
         # VIN_B: v1 404 → v2
@@ -4547,7 +4545,7 @@ class TestVWEUv1v2Fallback:
             APIError(404, "/v1/...", "Not Found"),
             None,
         ])
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_set_target_soc("VIN_B", 80)
         )
         # VIN_A still on v1 path, VIN_B on v2

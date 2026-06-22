@@ -198,7 +198,7 @@ class TestCommandLock:
             async with lock:
                 assert coord.is_command_in_flight("VINX", "lock") is True
 
-        asyncio.get_event_loop().run_until_complete(_hold())
+        asyncio.run(_hold())
         # Released after with-block
         assert coord.is_command_in_flight("VINX", "lock") is False
 
@@ -207,7 +207,7 @@ class TestWakeCooldown:
     def test_first_wake_no_cooldown(self):
         coord = _make_coord_for_lock_tests()
         # No prior wake → no cooldown raise
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+        asyncio.run(coord.async_wake_vehicle("VINX"))
         coord._cariad_client.command_wake.assert_awaited()
 
     def test_second_wake_within_cooldown_raises(self):
@@ -215,11 +215,11 @@ class TestWakeCooldown:
 
         coord = _make_coord_for_lock_tests()
         # First wake — succeeds
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+        asyncio.run(coord.async_wake_vehicle("VINX"))
         coord._cariad_client.command_wake.reset_mock()
         # Second wake immediately → cooldown raises
         with pytest.raises(ServiceValidationError):
-            asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+            asyncio.run(coord.async_wake_vehicle("VINX"))
         # API was NOT called
         coord._cariad_client.command_wake.assert_not_awaited()
 
@@ -227,7 +227,7 @@ class TestWakeCooldown:
         coord = _make_coord_for_lock_tests()
         coord._wake_last_at = {"VINX": datetime.now(tz=timezone.utc) - timedelta(minutes=10)}
         # 10 min ago > 5-min cooldown → passes
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+        asyncio.run(coord.async_wake_vehicle("VINX"))
         coord._cariad_client.command_wake.assert_awaited()
 
 
@@ -346,7 +346,7 @@ class TestSkodaCapabilities:
         client = SkodaClient.__new__(SkodaClient)
         client._get = AsyncMock(return_value={"capabilities": []})
 
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.get_capabilities("VINX")
         )
         called_url = client._get.await_args.args[0]
@@ -358,7 +358,7 @@ class TestSkodaCapabilities:
 
         client = SkodaClient.__new__(SkodaClient)
         client._get = AsyncMock(return_value=["not a dict"])
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_capabilities("VINX")
         )
         assert result == {}
