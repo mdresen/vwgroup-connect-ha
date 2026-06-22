@@ -672,6 +672,12 @@ class EUDataActConnector:
     async def get_vehicle_data(self, vin: str) -> VehicleData:
         """Fetch the latest dataset for *vin* and map it to VehicleData."""
         d = VehicleData(vin=vin)
+        # v2.15.0a10 (#481-residue) — assume "no data this poll" until the
+        # dataset actually parses (cleared at the success return below). Every
+        # early no-data return keeps this True, so the coordinator carries the
+        # previous good values forward instead of blanking entities on a portal
+        # timeout/outage. A brand-new car (no prior data) still appears.
+        d.no_data = True
         # 1. metadata → identifier. Soft on 404/500: when the continuous
         # data request isn't set up / hasn't propagated yet, the endpoint
         # 404s or 500s. Treat that as "no data yet" — return the bare
@@ -782,6 +788,7 @@ class EUDataActConnector:
             self.last_no_data_reason = "empty"
             return d
         self.last_no_data_reason = ""
+        d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
         return map_dataset_to_vehicle_data(fields, d)
 

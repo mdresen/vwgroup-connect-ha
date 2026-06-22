@@ -1249,7 +1249,12 @@ class VWEUClient(CariadBaseClient):
 
         url = build_mbb_operationlist_url(MBB_SETTER_BASE, vin)
         try:
-            resp = await self._mbb_get(url)
+            # v2.15.0a10 — _retry=False: a 401 here is the data-plane ACL
+            # rejecting the MBB read, NOT an expired bearer. The default
+            # 401→refresh would hammer the refresh endpoint every poll and trip
+            # the refresh-storm guard (IP-ban risk, seen live). The scheduled
+            # refresh keeps the bearer fresh; a genuine expiry recovers next poll.
+            resp = await self._mbb_get(url, _retry=False)
         except APIError as err:
             _LOGGER.warning(
                 "MBB operationList ***%s → HTTP %s: %s",
@@ -1341,7 +1346,9 @@ class VWEUClient(CariadBaseClient):
             host_label, country, vin[-6:],
         )
         try:
-            resp = await self._mbb_get(url)
+            # v2.15.0a10 — _retry=False, see _get_mbb_operationlist: avoid the
+            # per-poll token-refresh storm when the data-plane ACL 401s the read.
+            resp = await self._mbb_get(url, _retry=False)
         except APIError as err:
             _LOGGER.warning(
                 "MBB VSR read ***%s via %s/%s → HTTP %s: %s",

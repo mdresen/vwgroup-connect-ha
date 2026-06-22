@@ -1319,6 +1319,14 @@ class VehicleData:
     # JSON-safe attribute helper passes it through unchanged.
     available_charge_modes: list[str] = field(default_factory=list)
 
+    # v2.15.0a10 — transient per-poll flag (NOT a sensor). Set True by a
+    # connector when THIS poll produced no real data (e.g. EU Data Act portal
+    # timeout/outage, or an ACL-blocked MBB read) and the object carries only
+    # the VIN. The coordinator uses it to keep the previous good data visible
+    # ("old but visible") instead of blanking entities — but only when prior
+    # data exists, so a brand-new car still appears and fills in later.
+    no_data: bool = False
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""
         from dataclasses import asdict  # noqa: PLC0415

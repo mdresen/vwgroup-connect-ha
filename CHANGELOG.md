@@ -38,6 +38,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a10] - 2026-06-22
+
+> **Alpha / pre-release** — reliability batch (from the failsafe audit + a tester log).
+
+### Fixed
+
+- **Vehicle entities keep their last values during a portal outage instead of going blank.** When the EU Data Act portal times out or is briefly down, the car's sensors used to flip to unknown for that cycle (and the "last updated" time falsely reset to now). The integration now recognises a no-data poll and keeps the previous values visible (marked stale) — so a portal hiccup no longer blanks your dashboard. A brand-new car with no data yet still appears and fills in as before.
+- **MBB no longer hammers the login endpoint when a read is blocked.** On the durable-MBB path, a blocked status read could trigger a token refresh every poll, which tripped the safety guard ("pausing to prevent IP ban"). Those reads no longer refresh on a block, so the integration stops risking a rate-limit / IP ban while the read channel is unavailable. The scheduled refresh still keeps the session fresh.
+
 ## [2.15.0a9] - 2026-06-22
 
 > **Alpha / pre-release** — small fix from a tester report (#442).

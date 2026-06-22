@@ -1150,6 +1150,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             except Exception:  # noqa: BLE001
                                 pass
                     elif isinstance(result, VehicleData):
+                        # v2.15.0a10 (#481-residue) — a no-data poll (e.g. EU
+                        # Data Act portal timeout/outage) returns a bare
+                        # VehicleData carrying only the VIN. If we already hold
+                        # good data for this car, keep it VISIBLE ("old but
+                        # visible") and count this as a failed poll so the
+                        # stale-cache watchdog engages — instead of overwriting
+                        # SoC/odometer with blanks and resetting the failure
+                        # counter + last-good timestamp. A VIN we've never seen
+                        # falls through so a brand-new car still appears.
+                        if getattr(result, "no_data", False) and self.vehicles.get(vin):
+                            old = self.vehicles.get(vin, {})
+                            old["_poll_failed"] = True
+                            fresh[vin] = old
+                            self.vehicle_success[vin] = False
+                            self.vehicle_failure_count[vin] = (
+                                self.vehicle_failure_count.get(vin, 0) + 1
+                            )
+                            continue
                         # v1.10.1 (#58 Phase 2) — wrap to_dict + _enrich
                         # in their own try/except. A single VehicleData
                         # field with an unexpected type used to crash
