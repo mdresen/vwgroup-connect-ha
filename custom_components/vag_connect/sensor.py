@@ -708,7 +708,9 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         translation_key="last_charging_session_kwh",
         data_key="last_charging_session_kwh",
         native_unit_of_measurement="kWh",
-        device_class=SensorDeviceClass.ENERGY,
+        # b1 — HA 2026.6 rejects device_class=energy + state_class=measurement
+        # (energy needs total/total_increasing). These are per-session/trip delta
+        # measurements, not cumulative counters → drop device_class, keep kWh.
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-charging",
         suggested_display_precision=2,
@@ -1370,7 +1372,8 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         translation_key="refuel_trip_recuperation_kwh",
         data_key="refuel_trip_recuperation_kwh",
         native_unit_of_measurement="kWh",
-        device_class=SensorDeviceClass.ENERGY,
+        # b1 — HA 2026.6: energy device_class needs total/total_increasing, not
+        # measurement. Per-trip delta → drop device_class, keep kWh.
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-arrow-up-outline",
         suggested_display_precision=2,
@@ -1564,7 +1567,8 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         translation_key="last_trip_total_electric_consumption_kwh",
         data_key="last_trip_total_electric_consumption_kwh",
         native_unit_of_measurement="kWh",
-        device_class=SensorDeviceClass.ENERGY,
+        # b1 — HA 2026.6: energy device_class needs total/total_increasing, not
+        # measurement. Per-trip delta → drop device_class, keep kWh.
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:lightning-bolt",
         suggested_display_precision=2,
