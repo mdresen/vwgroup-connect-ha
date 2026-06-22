@@ -4466,6 +4466,7 @@ class TestVWEUv1v2Fallback:
         from unittest.mock import AsyncMock
         from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
         client = VWEUClient.__new__(VWEUClient)
+        client._tokens = None
         client._post = AsyncMock()
         client._v2_command_paths = {}
         return client

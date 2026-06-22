@@ -20,12 +20,23 @@ import sys
 from pathlib import Path
 
 import pytest
+from hypothesis import settings as _hyp_settings
 
 # Ensure the repo root is on sys.path so `custom_components.vag_connect`
 # resolves without an editable install.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+# The Hypothesis property tests (test_v1242_*) assert NEVER-raise
+# invariants over hundreds of arbitrary-input examples. Hypothesis'
+# default 200ms per-example deadline is wall-clock and trips
+# intermittently under full-suite CPU load (slow CI, parallel runs) even
+# though the helpers are fast — a classic deadline flake. Disable the
+# deadline globally: it measures environment speed, not correctness. The
+# invariants themselves remain fully exercised.
+_hyp_settings.register_profile("vag", deadline=None)
+_hyp_settings.load_profile("vag")
 
 # Detect HA availability ONCE — used by the auto-skip hook below.
 _HA_AVAILABLE = importlib.util.find_spec("homeassistant") is not None

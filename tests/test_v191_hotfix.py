@@ -28,6 +28,7 @@ def _vw_eu_client():
     from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
 
     client = VWEUClient.__new__(VWEUClient)
+    client._tokens = None
     client._post = AsyncMock(return_value=None)
     client._spin = ""
     client._v2_command_paths = {}

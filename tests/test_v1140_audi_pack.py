@@ -262,6 +262,7 @@ class TestPpcClimateBody:
     def _client(self):
         from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
         client = VWEUClient.__new__(VWEUClient)
+        client._tokens = None
         client._post_command_with_fallback_paths = AsyncMock(return_value=None)
         return client
 
