@@ -181,3 +181,28 @@ class TestConnectorReadMethods:
         imgs = asyncio.run(c.get_exterior_images(_VIN))
         assert len(imgs) == 4
         assert ap.primary_image_url(imgs) == "https://m/Front_Center.png"
+
+
+class TestMaintenanceRealShape:
+    """Locks in the REAL authproxy maintenance body (live-captured, Golf GTE):
+    flat fields directly under ``data`` (NOT wrapped in maintenanceStatus.value)."""
+
+    def test_flat_golf_shape_maps_odometer_service_and_captured_ts(self) -> None:
+        from custom_components.vag_connect.cariad.auth._website_authproxy import (
+            map_maintenance_to_vehicle_data,
+        )
+        from custom_components.vag_connect.cariad.models import VehicleData
+
+        payload = {"data": {
+            "carCapturedTimestamp": "2026-06-22T18:20:30Z",
+            "inspectionDue_days": 155, "inspectionDue_km": 14900,
+            "mileage_km": 162062,
+            "oilServiceDue_days": 17, "oilServiceDue_km": 1700,
+        }}
+        d = map_maintenance_to_vehicle_data(payload, VehicleData(vin="X"))
+        assert d.odometer_km == 162062
+        assert d.service_km == 14900
+        assert d.service_due_in_days == 155
+        assert d.oil_service_km == 1700
+        assert d.oil_service_due_in_days == 17
+        assert d.maintenance_report_captured_at == "2026-06-22T18:20:30Z"

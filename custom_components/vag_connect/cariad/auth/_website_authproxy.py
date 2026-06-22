@@ -259,6 +259,13 @@ def map_maintenance_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData
     if oil_days is not None:
         d.oil_service_due_in_days = oil_days
 
+    # b1 — capture the freshness anchor the real authproxy maintenance body
+    # carries (verified live on a Golf GTE: data.carCapturedTimestamp). Feeds
+    # the per-poll channel-merge freshness + a future data-age sensor.
+    ts = node.get("carCapturedTimestamp") or data.get("carCapturedTimestamp")
+    if isinstance(ts, str) and ts:
+        d.maintenance_report_captured_at = ts
+
     return d
 
 
