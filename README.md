@@ -67,7 +67,9 @@ VW hat 2026 den direkten Fahrzeug-Zugriff für Dritt-Tools schrittweise dichtgem
 - **EU-Data-Act-Portal** — read-only Fallback für alle Marken (attestation-frei, ~15 min Cadence).
 - **volkswagen.de-Web-Kanal (Beta, opt-in)** — zweiter attestation-freier Lesekanal für VW.
 
-Die laufende Arbeit dreht sich um Portal-Robustheit (Timeout-Retry, Daten-Freshness) und Resilienz über die Kanäle.
+> **🔬 Neu (Alpha): durable MBB-Login + Zwei-Wege-Befehle für VW EU.** Für ältere **Car-Net-Fahrzeuge** (die meisten PHEV/Verbrenner, z. B. Golf GTE) gibt es jetzt einen **passwortlosen, dauerhaften** Login (Browser-Bestätigung, kein Passwort in HA) der Neustarts übersteht — und damit **durable Fernbefehle** (Klima, Laden, Timer). Im aktuellen Stand der Recherche das einzige freie Projekt mit diesem Weg. Reine **ID/MEB-Autos** (ID.3/4/5, e-up) sind hier nicht dabei — deren Daten laufen über das EU-Data-Act-Portal. Aktiv in Entwicklung — siehe die `2.15.0aX`-Alphas.
+
+Die laufende Arbeit dreht sich um den MBB-Zwei-Wege-Pfad, Portal-Robustheit (Timeout-Retry, Daten-Freshness) und Resilienz über die Kanäle.
 
 ➡️ Vollständige Versionshistorie: **[CHANGELOG.md](CHANGELOG.md)**.
 
@@ -241,6 +243,18 @@ Vollständige FAQ in [`docs/FAQ.md`](docs/FAQ.md). Dashboard-Troubleshooting in 
 - Token-URLs werden im ERROR-Log redacted (v2.7.2+)
 
 Details in [`PRIVACY.md`](PRIVACY.md) und [`SECURITY.md`](SECURITY.md).
+
+---
+
+## Unterstützen ❤️
+
+Diese Integration ist ein Ein-Mann-Projekt — und VW macht es einem nicht leicht: jede Backend-Änderung (zuletzt die Attestation-Wand im Mai 2026) bedeutet Tage bis Wochen Reverse-Engineering, um wieder einen funktionierenden Weg zu finden. Genau diese Hartnäckigkeit hält die Integration am Leben, wo etablierte Projekte aufgegeben haben.
+
+Wenn dir das etwas wert ist, kannst du mich über **[GitHub Sponsors](https://github.com/sponsors/its-me-prash)** unterstützen. Jeder Beitrag hilft mir, dranzubleiben — neue Kanäle zu finden, schnell auf VW-Änderungen zu reagieren und das Ganze für alle am Laufen zu halten. Danke! 🙏
+
+<p align="center">
+  <a href="https://github.com/sponsors/its-me-prash"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-ec6cb9?logo=github-sponsors&logoColor=white" alt="Sponsor"></a>
+</p>
 
 ---
 

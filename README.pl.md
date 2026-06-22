@@ -244,6 +244,18 @@ Szczegóły w [`PRIVACY.md`](PRIVACY.md) i [`SECURITY.md`](SECURITY.md).
 
 ---
 
+## Support this project ❤️
+
+This integration is a one-person project — and VW doesn't make it easy: every backend change (most recently the attestation wall in May 2026) means days or weeks of reverse-engineering to find a working path again. That persistence is what keeps it alive where established projects have given up.
+
+If it's worth something to you, you can support me via **[GitHub Sponsors](https://github.com/sponsors/its-me-prash)**. Every contribution helps me stay on it — finding new channels, reacting fast to VW's changes, and keeping it working for everyone. Thank you! 🙏
+
+<p align="center">
+  <a href="https://github.com/sponsors/its-me-prash"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-ec6cb9?logo=github-sponsors&logoColor=white" alt="Sponsor"></a>
+</p>
+
+---
+
 ## Contributing
 
 PR-y mile widziane, patrz [`CONTRIBUTING.md`](CONTRIBUTING.md). Reguły stylu w [`STYLE.md`](STYLE.md) (prywatne w `_private/STYLE.md` dla maintainerów).
