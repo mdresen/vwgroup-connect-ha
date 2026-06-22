@@ -38,6 +38,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0a7] - 2026-06-22
+
+> **Alpha / pre-release — the "Endstufe" two-way test.** The deep dive settled what the durable VW login can and can't do, and this build ships the part that genuinely works durably: **remote commands**. No re-add needed — update and restart, then try a command.
+
+### Added
+
+- **Durable two-way commands over the MBB login: climate, charging and charge target.** The investigation proved the durable (password-free) VW login can't *read* live data — VW closed that path for this token type — but it CAN issue **commands** (the command path does an extra authorisation step that reads don't). So with the MBB login + your S-PIN you now get durable **climate start/stop, window heating, charging start/stop, and set charge target %** — and these keep working across restarts, no app-attestation, no ~1‑hour re-login.
+- **Country-agnostic by design.** Commands are routed through the car's own service directory (the operationList), which hands over the right server per service per market — so this works for German, Austrian, Dutch, etc. VW EU vehicles, not just the Swiss car it was discovered on. Each command is only attempted if the directory says your car+subscription actually allows it (so you don't waste S-PIN tries on a 403).
+
+> ⚠️ **Live-test the commands deliberately.** The command bodies are grounded against the classic Car-Net app + the car's own directory but haven't been actuated on every model — try one (e.g. start climate) and check it acts. A wrong S‑PIN counts toward the 3‑try lock, so the integration refuses to act when the car reports you're down to your last attempt. Reads still come from your other channel (EU Data Act / the existing login) — the MBB login is login + licence + commands.
+
 ## [2.15.0a6] - 2026-06-21
 
 > **Alpha / pre-release** — the diagnostics paid off. Live probing revealed the durable VW login works perfectly *and* reads data — the empty status on the test car was simply an **expired We Connect subscription** (every paid service was off). This build reads the car's service directory so it knows that, and tells you instead of failing silently. No re-add needed — update and restart.

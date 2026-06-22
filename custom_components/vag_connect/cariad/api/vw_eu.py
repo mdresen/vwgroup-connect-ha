@@ -608,6 +608,9 @@ class VWEUClient(CariadBaseClient):
         unreliable). ️ [Inference] — body shape verified from upstream
         PRs but Audi never published a definitive PPE compatibility list.
         """
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_mbb_op(vin, "climate_start")
+            return
         if ppe_mode:
             fallback_payload = {
                 "climatisationMode": "comfort",
@@ -686,6 +689,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_climate(self, vin: str) -> None:
         """Stop pre-conditioning — combined endpoint with separate fallback."""
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_mbb_op(vin, "climate_stop")
+            return
         await self._post_command_with_fallback_paths(
             vin,
             primary_suffix="climatisation/start-stop",
@@ -696,6 +702,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_start_charging(self, vin: str) -> None:
         """Start charging — combined endpoint with separate fallback."""
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_mbb_op(vin, "charge_start")
+            return
         await self._post_command_with_fallback_paths(
             vin,
             primary_suffix="charging/start-stop",
@@ -706,6 +715,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_charging(self, vin: str) -> None:
         """Stop charging — combined endpoint with separate fallback."""
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_mbb_op(vin, "charge_stop")
+            return
         await self._post_command_with_fallback_paths(
             vin,
             primary_suffix="charging/start-stop",
@@ -1476,6 +1488,115 @@ class VWEUClient(CariadBaseClient):
             verb, vin[-6:],
         )
 
+    async def _mbb_post_action(
+        self, url: str, sec_token: str, body: str | None, content_type: str,
+        *, _retry: bool = True,
+    ) -> dict[str, Any]:
+        """POST an MBB write-command action (XML body) with the level-2
+        x-securityToken + the vendor content-type. Refresh-once on 401."""
+        headers = self._mbb_headers({
+            "Content-Type": content_type,
+            "x-securityToken": sec_token,
+        })
+        data = body.encode("utf-8") if isinstance(body, str) else None
+        async with self._session.post(url, data=data, headers=headers) as resp:
+            text = await resp.text()
+            if resp.status == 401 and _retry:
+                await self._refresh_tokens()
+                return await self._mbb_post_action(
+                    url, sec_token, body, content_type, _retry=False)
+            if resp.status >= 400:
+                raise APIError(resp.status, url, body=text)
+            if not text:
+                return {}
+            try:
+                loaded = json.loads(text)
+            except ValueError:
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+    async def _command_mbb_op(
+        self, vin: str, command_name: str, *, spin: str = "",
+        body_override: str | None = None,
+    ) -> None:
+        """Durable MBB write-command via the 3-leg SecToken flow, routed
+        GENERICALLY through the operationList (per-service host = correct for
+        any country/brand) and gated on the operation actually being granted.
+
+        Live-confirmed that leg-1 (security-pin-auth-requested) = HTTP 200 for
+        climate/charge — so this drives DURABLE two-way where data reads can't.
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_COMMANDS,
+            MBB_SETTER_BASE,
+            build_mbb_action_url,
+            build_mbb_completed_body,
+            build_mbb_op_auth_url,
+            build_mbb_spin_completed_url,
+            compute_spin_hash,
+            mbb_operation_granted,
+            mbb_service_base,
+            parse_mbb_action_request_id,
+            parse_mbb_completed_token,
+            parse_mbb_spin_challenge,
+            validate_spin_format,
+        )
+
+        spec = MBB_COMMANDS.get(command_name)
+        if spec is None:
+            raise VehicleCommandError(command_name, "unknown MBB command")
+        pin = spin or self._spin
+        if not pin:
+            raise SpinError(f"S-PIN required for MBB {command_name}")
+        validate_spin_format(pin)
+
+        # operationList → per-service host (generic) + granted gate
+        oplist = await self._get_mbb_operationlist(vin)
+        country = self._mbb_country_from_id_token() or "DE"
+        base = mbb_service_base(
+            oplist, spec.service_id, brand=self._brand.name,
+            country=country, vin=vin)
+        if base is None:
+            raise VehicleCommandError(
+                command_name,
+                f"{spec.service_id} not available on this vehicle "
+                "(not in the operationList)")
+        if not mbb_operation_granted(oplist, spec.service_id, spec.operation_id):
+            raise VehicleCommandError(
+                command_name,
+                f"{spec.operation_id} not granted — check the We Connect "
+                "subscription / that you're the primary user")
+
+        setter = MBB_SETTER_BASE
+        # Leg 1 — operation-specific SecToken challenge
+        ch = await self._mbb_get(
+            build_mbb_op_auth_url(setter, vin, spec.service_id, spec.operation_id))
+        level1, challenge, remaining = parse_mbb_spin_challenge(ch)
+        if not level1 or not challenge:
+            raise VehicleCommandError(command_name, "SecToken challenge missing")
+        if remaining is not None and remaining < 2:
+            raise SpinError(
+                f"S-PIN has only {remaining} attempt(s) left — refusing to risk "
+                "a lockout. Verify your S-PIN in the brand app first.")
+        # Leg 2 — submit hashed S-PIN
+        comp = await self._mbb_post_json(
+            build_mbb_spin_completed_url(setter),
+            build_mbb_completed_body(level1, challenge, compute_spin_hash(pin, challenge)))
+        sec = parse_mbb_completed_token(comp)
+        if not sec:
+            raise VehicleCommandError(command_name, "SecToken completion returned no token")
+        # Leg 3 — the action on the service's own host
+        url = build_mbb_action_url(base, spec.action_subpath)
+        resp = await self._mbb_post_action(
+            url, sec, body_override if body_override is not None else spec.body,
+            spec.content_type)
+        request_id = parse_mbb_action_request_id(resp)
+        _LOGGER.info(
+            "MBB command %s sent for ***%s (request_id=%s)",
+            command_name, vin[-6:], request_id or "(none)")
+        if request_id:
+            await self._poll_mbb_rlu(setter, vin, request_id, command_name)
+
     # ── v1/v2 endpoint dispatch (Session 3A — #51, #74) ─────────────────────
     #
     # Newer premium Audi models (RS e-tron GT, Q6 e-tron, A3 2024+ on PPC/PPE)
@@ -1574,6 +1695,12 @@ class VWEUClient(CariadBaseClient):
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
         """Set charge target SoC. Tries v1 first, falls back to v2 on 404."""
+        if self._tokens and self._tokens.strategy == "mbb":
+            from .._mbb import build_mbb_charger_settings_body  # noqa: PLC0415
+            await self._command_mbb_op(
+                vin, "charge_target_soc",
+                body_override=build_mbb_charger_settings_body(target))
+            return
         await self._post_command(
             vin, "charging/settings", json={"targetSOC_pct": target},
         )
@@ -1626,6 +1753,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_start_window_heating(self, vin: str) -> None:
         """Start window heating (front windscreen + rear window)."""
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_mbb_op(vin, "window_heat_start")
+            return
         await self._post(
             f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
             json={"action": "start"},
@@ -1633,6 +1763,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_window_heating(self, vin: str) -> None:
         """Stop window heating."""
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._command_mbb_op(vin, "window_heat_stop")
+            return
         await self._post(
             f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
             json={"action": "stop"},

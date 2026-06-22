@@ -464,6 +464,19 @@ def build_mbb_spin_completed_url(setter_base: str) -> str:
     return f"{setter_base}/api/rolesrights/authorization/v2/security-pin-auth-completed"
 
 
+def build_mbb_op_auth_url(
+    setter_base: str, vin: str, service_id: str, operation_id: str,
+) -> str:
+    """GET URL for SecToken leg-1 for ANY service/operation (generic — drives
+    climate/charge/timer commands, not just rlu). Live-confirmed HTTP 200 for
+    rclima_v1/P_START_CLIMA_NOSET + rbatterycharge_v1/P_START."""
+    return (
+        f"{setter_base}/api/rolesrights/authorization/v2/vehicles/"
+        f"{vin.upper()}/services/{service_id}/operations/{operation_id}/"
+        "security-pin-auth-requested"
+    )
+
+
 def build_mbb_rlu_action_url(setter_base: str, vin: str, *, lock: bool) -> str:
     """POST URL for leg 3 — the actual lock/unlock action (no brand/country)."""
     tail = "lock" if lock else "unlock"
@@ -544,6 +557,29 @@ def parse_mbb_rlu_request_id(response: dict | None) -> str | None:
     if request_id is None:
         return None
     return str(request_id)
+
+
+def parse_mbb_action_request_id(response: dict | None) -> str | None:
+    """Extract the request/action id from ANY MBB action response envelope
+    (rluActionResponse / climaterActionResponse / chargerActionResponse /
+    action.actionId). Generic so one parser serves all command families."""
+    if not isinstance(response, dict):
+        return None
+    for key, idfield in (
+        ("rluActionResponse", "requestId"),
+        ("climaterActionResponse", "requestId"),
+        ("chargerActionResponse", "requestId"),
+        ("action", "actionId"),
+        ("action", "requestId"),
+    ):
+        wrapper = response.get(key)
+        if isinstance(wrapper, dict) and wrapper.get(idfield) is not None:
+            return str(wrapper[idfield])
+    # last resort: a bare requestId/actionId
+    for f in ("requestId", "actionId"):
+        if response.get(f) is not None:
+            return str(response[f])
+    return None
 
 
 def parse_mbb_rlu_status(response: dict | None) -> str | None:
@@ -727,6 +763,8 @@ def mbb_service_base(
 
     The template carries ``{vin}`` and sometimes ``{brand}``/``{country}``;
     substitute them so the caller gets a ready base (still ending in ``/``).
+    This is what makes the command paths GENERIC across countries/brands — the
+    portal hands us the right host per service per market, no hardcoding.
     """
     if oplist is None:
         return None
@@ -739,4 +777,120 @@ def mbb_service_base(
         .replace("{vin}", vin.upper())
         .replace("{brand}", seg)
         .replace("{country}", country)
+        .rstrip("/")
+    )
+
+
+def mbb_operation_granted(
+    oplist: MbbOperationList | None, service_id: str, operation_id: str,
+) -> bool:
+    """True if the operationList lists ``operation_id`` as ``granted`` on a
+    currently-Enabled service — so we only attempt commands the car/account
+    actually allows (avoids burning S-PIN tries / hitting licence walls)."""
+    if oplist is None:
+        return False
+    svc = oplist.service(service_id)
+    if svc is None or not svc.enabled:
+        return False
+    for op in svc.operations:
+        if op.get("id") == operation_id:
+            return str(op.get("permission", "")).lower() == "granted"
+    return False
+
+
+# ── v2.15.0a7 — MBB write-command action recipes (SecToken + per-service) ────
+#
+# Grounded against upstream audi_services.py (legacy MBB action paths +
+# content-types) + our live operationList (per-service invocationUrl +
+# granted operations). The durable MBB token CANNOT read data (systemId ACL),
+# but the SecToken/rolesrights command path IS open (live-confirmed:
+# security-pin-auth-requested = HTTP 200 for rclima/rbatterycharge/rlu). So
+# these drive DURABLE two-way: climate, charging, timers — actuated via the
+# 3-leg S-PIN SecToken flow then a POST to the service's own host.
+MBB_CLIMATER_ACTION_CT = "application/vnd.vwg.mbb.ClimaterAction_v1_0_0+xml"
+MBB_CHARGER_ACTION_CT = "application/vnd.vwg.mbb.ChargerAction_v1_0_0+xml"
+
+# Each command: (service_id, operation_id, action_subpath, content_type,
+# payload). operation_id is what the SecToken leg-1 authorizes. payload is the
+# request body (XML string for climater/charger actions; the {temp} placeholder
+# is substituted for climate-start). ``None`` payload = empty body.
+_MBB_CLIMATER_START = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>startClimatisation</type><settings>"
+    "<heaterSource>electric</heaterSource></settings></action>"
+)
+_MBB_CLIMATER_STOP = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>stopClimatisation</type></action>"
+)
+_MBB_WINDOWHEAT_START = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>startWindowHeating</type></action>"
+)
+_MBB_WINDOWHEAT_STOP = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>stopWindowHeating</type></action>"
+)
+_MBB_CHARGER_START = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>start</type></action>"
+)
+_MBB_CHARGER_STOP = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>stop</type></action>"
+)
+
+
+@dataclass
+class MbbCommandSpec:
+    """A durable MBB write-command: which service+operation to authorize via
+    the SecToken flow, and the action POST (subpath, content-type, body)."""
+
+    service_id: str
+    operation_id: str
+    action_subpath: str          # appended to the service base (e.g. "climater/actions")
+    content_type: str
+    body: str | None             # XML string, or None for empty body
+
+
+# The supported durable commands, keyed by a stable name the coordinator uses.
+MBB_COMMANDS: dict[str, MbbCommandSpec] = {
+    "climate_start": MbbCommandSpec(
+        "rclima_v1", "P_START_CLIMA_NOSET", "climater/actions",
+        MBB_CLIMATER_ACTION_CT, _MBB_CLIMATER_START),
+    "climate_stop": MbbCommandSpec(
+        "rclima_v1", "P_STOP", "climater/actions",
+        MBB_CLIMATER_ACTION_CT, _MBB_CLIMATER_STOP),
+    "window_heat_start": MbbCommandSpec(
+        "rclima_v1", "P_START_WND", "climater/actions",
+        MBB_CLIMATER_ACTION_CT, _MBB_WINDOWHEAT_START),
+    "window_heat_stop": MbbCommandSpec(
+        "rclima_v1", "P_STOP_WND", "climater/actions",
+        MBB_CLIMATER_ACTION_CT, _MBB_WINDOWHEAT_STOP),
+    "charge_start": MbbCommandSpec(
+        "rbatterycharge_v1", "P_START", "charger/actions",
+        MBB_CHARGER_ACTION_CT, _MBB_CHARGER_START),
+    "charge_stop": MbbCommandSpec(
+        "rbatterycharge_v1", "P_STOP", "charger/actions",
+        MBB_CHARGER_ACTION_CT, _MBB_CHARGER_STOP),
+    # body is supplied at call time via build_mbb_charger_settings_body(soc).
+    "charge_target_soc": MbbCommandSpec(
+        "rbatterycharge_v1", "P_SETTINGS", "charger/actions",
+        MBB_CHARGER_ACTION_CT, None),
+}
+
+
+def build_mbb_action_url(service_base: str, action_subpath: str) -> str:
+    """Join an operationList service base with a command's action subpath."""
+    return f"{service_base.rstrip('/')}/{action_subpath.lstrip('/')}"
+
+
+def build_mbb_charger_settings_body(target_soc_pct: int) -> str:
+    """ChargerAction body to set the target state-of-charge (%)."""
+    soc = max(0, min(100, int(target_soc_pct)))
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        "<action><type>setSettings</type><settings>"
+        f"<targetStateOfChargeInPercent>{soc}</targetStateOfChargeInPercent>"
+        "</settings></action>"
     )

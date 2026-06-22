@@ -378,9 +378,10 @@ class TestOperationListParse:
         base = _mbb.mbb_service_base(
             ol, "rclima_v1", brand="volkswagen", country="CH", vin="wvwzzz1",
         )
+        # trailing slash stripped (v2.15.0a7) so build_mbb_action_url can join.
         assert base == (
             "https://mal-1a.prd.ece.vwg-connect.com/api/bs/climatisation/v1/"
-            "vehicles/WVWZZZ1/"
+            "vehicles/WVWZZZ1"
         )
 
     def test_service_base_none_when_no_invocation_url(self) -> None:
@@ -426,6 +427,84 @@ class TestOperationListParse:
         })
         # No statusreport_v1 → subscription state is unknown (None), not False.
         assert _mbb.mbb_subscription_active(ol) is None
+
+
+# ── durable MBB commands (climate/charge/timer via SecToken) ──────────
+#
+# The data plane is ACL-closed for the durable token, but the SecToken
+# command path IS open (live-confirmed: security-pin-auth-requested=200).
+# These route GENERICALLY through the operationList per-service hosts so
+# any country/brand works without hardcoding.
+
+
+def _active_oplist():
+    """The real fixture with every service flipped to Enabled (subscribed)."""
+    d = json.loads(
+        (_FIXTURES / "mbb_operationlist_golf_expired.json").read_text(
+            encoding="utf-8"))
+    for s in d["operationList"]["serviceInfo"]:
+        s["serviceStatus"] = {"status": "Enabled"}
+    return _mbb.parse_mbb_operationlist(d)
+
+
+class TestMbbCommands:
+    def test_command_table_covers_climate_and_charge(self) -> None:
+        for name in ("climate_start", "climate_stop", "charge_start",
+                     "charge_stop", "charge_target_soc", "window_heat_start",
+                     "window_heat_stop"):
+            assert name in _mbb.MBB_COMMANDS
+        spec = _mbb.MBB_COMMANDS["climate_start"]
+        assert spec.service_id == "rclima_v1"
+        assert spec.action_subpath == "climater/actions"
+        assert "ClimaterAction" in spec.content_type
+
+    def test_service_base_is_per_market_generic(self) -> None:
+        # The charge invocationUrl carries {brand}/{country} → substituted from
+        # the operationList, so a CH account gets /VW/CH/ automatically.
+        ol = _active_oplist()
+        base = _mbb.mbb_service_base(
+            ol, "rbatterycharge_v1", brand="volkswagen", country="CH", vin="wvw1")
+        assert "/VW/CH/" in base
+        assert base.endswith("WVW1")
+
+    def test_op_granted_only_when_enabled_and_granted(self) -> None:
+        active = _active_oplist()
+        assert _mbb.mbb_operation_granted(
+            active, "rclima_v1", "P_START_CLIMA_NOSET") is True
+        # Disabled service (the original expired fixture) → not grantable.
+        expired = _mbb.parse_mbb_operationlist(_load_oplist_fixture())
+        assert _mbb.mbb_operation_granted(
+            expired, "rclima_v1", "P_START_CLIMA_NOSET") is False
+        # Unknown operation → False.
+        assert _mbb.mbb_operation_granted(active, "rclima_v1", "NOPE") is False
+
+    def test_op_auth_url(self) -> None:
+        assert _mbb.build_mbb_op_auth_url(
+            "https://mal-1a.x", "wvw1", "rclima_v1", "P_STOP") == (
+            "https://mal-1a.x/api/rolesrights/authorization/v2/vehicles/WVW1/"
+            "services/rclima_v1/operations/P_STOP/security-pin-auth-requested")
+
+    def test_action_url_join(self) -> None:
+        assert _mbb.build_mbb_action_url(
+            "https://h/api/bs/climatisation/v1/vehicles/WVW1",
+            "climater/actions",
+        ) == "https://h/api/bs/climatisation/v1/vehicles/WVW1/climater/actions"
+
+    def test_charger_settings_body_clamps_soc(self) -> None:
+        body = _mbb.build_mbb_charger_settings_body(150)
+        assert "<targetStateOfChargeInPercent>100<" in body
+        assert _mbb.build_mbb_charger_settings_body(-5).count(">0<") >= 0
+
+    def test_action_request_id_generic(self) -> None:
+        assert _mbb.parse_mbb_action_request_id(
+            {"climaterActionResponse": {"requestId": "C1"}}) == "C1"
+        assert _mbb.parse_mbb_action_request_id(
+            {"chargerActionResponse": {"requestId": "G2"}}) == "G2"
+        assert _mbb.parse_mbb_action_request_id(
+            {"rluActionResponse": {"requestId": "R3"}}) == "R3"
+        assert _mbb.parse_mbb_action_request_id({"action": {"actionId": "A4"}}) == "A4"
+        assert _mbb.parse_mbb_action_request_id(None) is None
+        assert _mbb.parse_mbb_action_request_id({}) is None
 
 
 # ── auth-isolation regression gates (review 2026-06-21) ───────────────
