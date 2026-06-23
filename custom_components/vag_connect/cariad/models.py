@@ -1338,6 +1338,12 @@ class VehicleData:
     # (e.g. "eu_data_act+mbb"); None for a single-channel poll. Surfaced as a
     # diagnostic attribute so users/maintainers can see where data came from.
     source_channel: str | None = None
+    # v2.15.0b1 (A6) — raw field discovery: portal fields the curated parser
+    # did not map, kept as {field_name: value} so the user can see every value
+    # the backend sent (surfaced as attributes on ONE disabled diagnostic
+    # sensor — no per-field entity explosion). Same unmapped set that feeds the
+    # Vehicle Data Scout report: one detection pass, both worlds.
+    raw_unmapped_fields: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""

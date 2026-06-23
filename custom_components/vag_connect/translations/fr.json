@@ -367,6 +367,9 @@
       "api_observer_findings": {
         "name": "Observateur d'API"
       },
+      "raw_api_fields": {
+        "name": "Champs API bruts"
+      },
       "error_reporter_count": {
         "name": "Rapporteur d'erreurs"
       },

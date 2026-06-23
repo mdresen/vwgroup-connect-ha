@@ -367,6 +367,9 @@
       "api_observer_findings": {
         "name": "API-spanare"
       },
+      "raw_api_fields": {
+        "name": "Råa API-fält"
+      },
       "error_reporter_count": {
         "name": "Felrapportör"
       },

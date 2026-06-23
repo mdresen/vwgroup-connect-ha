@@ -367,6 +367,9 @@
       "api_observer_findings": {
         "name": "Obserwator API"
       },
+      "raw_api_fields": {
+        "name": "Surowe pola API"
+      },
       "error_reporter_count": {
         "name": "Raporter błędów"
       },

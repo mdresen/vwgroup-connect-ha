@@ -367,6 +367,9 @@
       "api_observer_findings": {
         "name": "API-waarnemer"
       },
+      "raw_api_fields": {
+        "name": "Ruwe API-velden"
+      },
       "error_reporter_count": {
         "name": "Foutmelder"
       },

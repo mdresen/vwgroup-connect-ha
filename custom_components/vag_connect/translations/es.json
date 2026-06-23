@@ -367,6 +367,9 @@
       "api_observer_findings": {
         "name": "Observador de API"
       },
+      "raw_api_fields": {
+        "name": "Campos API sin procesar"
+      },
       "error_reporter_count": {
         "name": "Reportador de errores"
       },

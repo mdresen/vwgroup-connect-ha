@@ -367,6 +367,9 @@
       "api_observer_findings": {
         "name": "Pozorovatel API"
       },
+      "raw_api_fields": {
+        "name": "Nezpracovaná pole API"
+      },
       "error_reporter_count": {
         "name": "Hlásič chyb"
       },

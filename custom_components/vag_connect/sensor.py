@@ -994,6 +994,21 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         state_class=SensorStateClass.MEASUREMENT,
     ),
+    # b1/A6 — raw field discovery. ONE diagnostic sensor (disabled by default)
+    # whose state is the count of portal fields the curated parser did not map;
+    # the full {field: value} set lives in attributes. Same detection as the
+    # Scout report — the user gets every value the backend sent without waiting
+    # for a curated mapping, and without an entity per field. Gated on data
+    # present so only vehicles that actually have unmapped fields get it.
+    VagSensorDescription(
+        key="raw_api_fields",
+        translation_key="raw_api_fields",
+        data_key="raw_unmapped_fields",
+        icon="mdi:code-json",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+    ),
     VagSensorDescription(
         key="error_reporter_count",
         translation_key="error_reporter_count",
@@ -1639,6 +1654,9 @@ _REPORTER_KEYS: frozenset[str] = frozenset({
 # legitimately start as None and populate later, so they should NOT be
 # gated this way.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
+    # b1/A6 — raw-discovery sensor only spawns when the portal actually
+    # delivered unmapped fields (empty dict on every other brand/channel).
+    "raw_api_fields",
     "electric_range_km",
     "combustion_range_km",
     "total_range_km",
@@ -1878,8 +1896,10 @@ async def async_setup_entry(
                 # shaped with a ``default_factory=list`` default that yields
                 # ``[]`` on absent data rather than ``None``. Treat both as
                 # "not present" so the entity is skipped at spawn time.
-                if _present is None or (
-                    isinstance(_present, list) and not _present
+                if (
+                    _present is None
+                    or (isinstance(_present, list) and not _present)
+                    or (isinstance(_present, dict) and not _present)
                 ):
                     continue
             if desc.key in _TRIP_STATS_KEYS:
@@ -2001,6 +2021,12 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             modes = self._vehicle.get("available_charge_modes")
             if isinstance(modes, list) and modes:
                 return json_safe_dict({"available_modes": modes})
+        # b1/A6 — raw field discovery: the full {field: value} set as attributes
+        # on the one raw_api_fields diagnostic sensor (state stays the count).
+        if self.entity_description.key == "raw_api_fields":
+            raw = self._vehicle.get("raw_unmapped_fields")
+            if isinstance(raw, dict) and raw:
+                return json_safe_dict({"fields": raw})
         return None
 
     @property
@@ -2015,6 +2041,10 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             if isinstance(val, list) and val:
                 return len(val)
             return None
+        # b1/A6 — raw_api_fields state is the COUNT of unmapped portal fields;
+        # the {field: value} map lives in extra_state_attributes.
+        if self.entity_description.key == "raw_api_fields":
+            return len(val) if isinstance(val, dict) and val else None
         # charging_power_kw + charging_rate_kmh: API omits these when not charging.
         # Return 0 so the entity shows "0 kW / 0 km/h" instead of "unavailable".
         if val is None and self.entity_description.key in _ZERO_WHEN_IDLE:

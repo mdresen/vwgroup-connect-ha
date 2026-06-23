@@ -493,6 +493,11 @@ def _shorten_enum(value: str | None) -> str | None:
     return value
 
 
+# b1/A6 — cap raw-discovery fields kept on the diagnostic sensor's attributes,
+# so a pathological payload can't bloat the recorder / state machine.
+_RAW_FIELD_CAP = 250
+
+
 def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -661,6 +666,18 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
             "EU Data Act: %d unmapped portal field(s): %s",
             len(unmapped), ", ".join(unmapped[:40]),
         )
+        # b1/A6 — raw field discovery (same detection, both worlds): expose the
+        # unmapped fields + their REAL values so the user can see everything the
+        # backend sent, on one disabled diagnostic sensor. Capped to keep the
+        # attribute payload sane; the debug log above already records the count.
+        d.raw_unmapped_fields = {
+            k: str(fields[k]) for k in unmapped[:_RAW_FIELD_CAP]
+        }
+        if len(unmapped) > _RAW_FIELD_CAP:
+            _LOGGER.debug(
+                "EU Data Act: raw-discovery capped at %d of %d fields",
+                _RAW_FIELD_CAP, len(unmapped),
+            )
 
     return d
 

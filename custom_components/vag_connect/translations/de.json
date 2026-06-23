@@ -384,6 +384,9 @@
       "api_observer_findings": {
         "name": "API-Beobachter"
       },
+      "raw_api_fields": {
+        "name": "Rohe API-Felder"
+      },
       "error_reporter_count": {
         "name": "Fehler-Berichter"
       },

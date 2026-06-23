@@ -375,6 +375,9 @@
       "api_observer_findings": {
         "name": "Vehicle Data Scout"
       },
+      "raw_api_fields": {
+        "name": "Raw API fields"
+      },
       "error_reporter_count": {
         "name": "Error Reporter"
       },
