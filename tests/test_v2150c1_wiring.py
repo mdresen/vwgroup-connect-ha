@@ -70,13 +70,15 @@ class TestArmSupplementary:
         assert asyncio.run(c.arm_supplementary_authproxy(None)) is False
         assert asyncio.run(c.arm_supplementary_authproxy([])) is False
 
-    def test_alive_arms_with_dedicated_session(self) -> None:
+    def test_silent_refresh_arms_with_dedicated_session(self) -> None:
+        # b9: resume via the prompt=none silent refresh (re-mints the portal
+        # session from the SSO cookie), NOT a /relations probe. OTP-free.
         c = _client()
         sess = MagicMock()
         sess.close = AsyncMock()
         conn = MagicMock()
         conn.import_cookies = MagicMock()
-        conn.session_alive = AsyncMock(return_value=True)
+        conn.refresh = AsyncMock()  # prompt=none silent resume succeeds
         conn.begin_login = AsyncMock()
         with patch("aiohttp.ClientSession", return_value=sess), \
              patch(_CONN_PATH, return_value=conn) as ctor:
@@ -87,18 +89,19 @@ class TestArmSupplementary:
         # connector built on the DEDICATED session, not the shared one
         assert ctor.call_args.args[0] is sess
         assert ctor.call_args.args[0] is not c._session
+        conn.refresh.assert_awaited_once()
         sess.close.assert_not_awaited()
-        conn.begin_login.assert_not_awaited()  # alive → no login fallback
+        conn.begin_login.assert_not_awaited()  # no OTP path on resume
 
-    def test_stale_repairs_without_calling_begin_login(self) -> None:
-        # b6: NEVER call begin_login here — it would make the IDP send a new OTP
-        # email on every arm. Stale probe → flag for re-add (Repair), no spam.
+    def test_dead_sso_repairs_without_otp(self) -> None:
+        # b9: refresh() raises on a dead SSO (prompt=none bounced to /u/login).
+        # It NEVER calls begin_login, so no OTP-email storm — just flag re-add.
         c = _client()
         sess = MagicMock()
         sess.close = AsyncMock()
         conn = MagicMock()
         conn.import_cookies = MagicMock()
-        conn.session_alive = AsyncMock(return_value=False)
+        conn.refresh = AsyncMock(side_effect=AuthenticationError("SSO expired"))
         conn.begin_login = AsyncMock()
         with patch("aiohttp.ClientSession", return_value=sess), \
              patch(_CONN_PATH, return_value=conn):

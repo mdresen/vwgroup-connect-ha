@@ -595,17 +595,20 @@ class CariadBaseClient:
                 session, self._email, self._password, brand=self._brand.name,
             )
             connector.import_cookies(cookies)
-            # IMPORTANT: only the cheap, side-effect-free session_alive probe —
-            # NEVER begin_login() here. begin_login STARTS the OAuth flow, which
-            # makes the IDP send a NEW email OTP every arm (a code-email storm on
-            # every reload). If the resume probe fails, the session genuinely
-            # needs an interactive re-add (OTP), so surface the Repair instead.
-            if not await connector.session_alive():
+            # Resume via the prompt=none SILENT re-authorize (connector.refresh):
+            # a live Auth0 SSO cookie re-mints the portal session WITHOUT ever
+            # touching the OTP path (which only lives on the interactive login).
+            # refresh() raises if the SSO is dead — then it's a genuine re-add,
+            # surfaced as a Repair. It NEVER calls begin_login, so no OTP-email
+            # storm on reload. (Mechanism mirrors the rafaelhutter portal client.)
+            try:
+                await connector.refresh()
+            except Exception as err:  # noqa: BLE001
                 self._supplementary_needs_reauth = True
                 _LOGGER.warning(
-                    "VAG Connect: supplementary vw.de channel could not resume"
-                    " — re-add it from the integration options (it needs a fresh"
-                    " email code); the primary channel is unaffected."
+                    "VAG Connect: supplementary vw.de channel could not silently"
+                    " resume (%s) — re-add it from the integration options; the"
+                    " primary channel is unaffected.", type(err).__name__,
                 )
                 await session.close()
                 return False
@@ -731,15 +734,17 @@ class CariadBaseClient:
         # begin_login() surfaces "otp_required" → the normal reauth path below.
         if self._website_cookies:
             connector.import_cookies(self._website_cookies)
-            # v2.14.6 — probe a data endpoint with the resumed cookies BEFORE
-            # touching the login flow. A still-valid session lets us adopt it
-            # directly and skip the /app/authproxy/login OAuth dance — which is
-            # the path that redirect-loops (TooManyRedirects) when the persisted
-            # cookies are only partially valid. A dead session (probe False)
-            # falls through to a full begin_login() → OTP, exactly as before.
-            if await connector.session_alive():
+            # b9 — resume via the prompt=none SILENT refresh: it re-mints the
+            # portal session from the Auth0 SSO cookie WITHOUT ever touching the
+            # OTP path. (The old data-endpoint probe was the wrong test — the
+            # portal session token expires ~30 min after login even while the SSO
+            # is still alive, so probing /relations failed and forced a needless
+            # OTP re-login on restart.) Only a genuinely DEAD SSO makes refresh()
+            # raise → then begin_login() does a real, one-time (OTP) re-auth.
+            try:
+                await connector.refresh()
                 result = "ok"
-            else:
+            except Exception:  # noqa: BLE001
                 result = await connector.begin_login()
         else:
             result = await connector.begin_login()

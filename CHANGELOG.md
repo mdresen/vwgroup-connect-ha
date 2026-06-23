@@ -38,6 +38,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b9] - 2026-06-23
+
+> **Beta / pre-release** — the vw.de channel finally resumes silently (no more code-email on every restart).
+
+### Fixed
+
+- **vw.de no longer asks for a new email code on every reload.** The session now resumes through a silent re-authorization (it re-uses the long-lived sign-in cookie to mint a fresh session in the background), instead of probing a data endpoint and falling back to a full login when that probe failed. The data probe was the wrong test — the portal session quietly expires about half an hour after sign-in even while the underlying sign-in is still good, so it kept forcing a needless code-email. The silent resume only ever asks for a code when the sign-in itself has genuinely expired (a one-time re-add), never on a routine restart. Applies to both the vw.de primary mode and the vw.de supplementary read channel.
+- **vw.de reads were silently coming back empty.** Every request now sends the CSRF token the portal expects (echoed from its cookie), which the reads require — without it the portal answered with empty data.
+
 ## [2.15.0b8] - 2026-06-23
 
 > **Beta / pre-release** — the real two-way + reads combo: EU Data Act portal as a supplementary read channel.

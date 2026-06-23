@@ -44,7 +44,7 @@ from urllib.parse import parse_qs, urlparse
 from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
 
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
-from ..exceptions import AuthenticationError, EmailTwoFactorRequiredError
+from ..exceptions import AuthenticationError
 from ..models import VehicleData
 from ._eu_data_act import _login_fields, _login_error, _resolve_action
 
@@ -311,11 +311,35 @@ class WebsiteAuthProxyConnector:
 
     # ── login ──────────────────────────────────────────────────────────────
 
+    def _csrf(self) -> str:
+        """Current ``csrf_token`` cookie value, for the double-submit header.
+
+        The authproxy enforces a double-submit CSRF check: the value of the
+        ``csrf_token`` cookie must be echoed back in the ``x-csrf-token`` header
+        on every read (and it rotates on each silent refresh). Returns "" if
+        absent (never raises)."""
+        from yarl import URL  # noqa: PLC0415
+        try:
+            jar = self._session.cookie_jar
+            for host in _COOKIE_HOSTS:
+                ck = jar.filter_cookies(URL(host)).get("csrf_token")
+                if ck and ck.value:
+                    return str(ck.value)
+        except Exception:  # noqa: BLE001
+            pass
+        return ""
+
     def _headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         headers = {
             "User-Agent": _USER_AGENT,
             "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
         }
+        # Double-submit CSRF: echo the csrf_token cookie into the header on every
+        # request, or the authproxy rejects reads (the reads silently returned
+        # {} / 412 without it).
+        csrf = self._csrf()
+        if csrf:
+            headers["x-csrf-token"] = csrf
         if extra:
             headers.update(extra)
         return headers
@@ -542,15 +566,31 @@ class WebsiteAuthProxyConnector:
             landed = str(resp.url)
             status = resp.status
 
+        # prompt=none silent re-authorize: a LIVE Auth0 SSO cookie mints a fresh
+        # portal session and lands us back on volkswagen.de. A DEAD SSO bounces
+        # to the login page / returns ?error=… — in which case we must NOT fall
+        # back to begin_login() (that would start the interactive flow and make
+        # the IDP email a fresh OTP every refresh). Raise → the caller surfaces
+        # a graceful re-add instead. OTP only ever lives on the interactive path.
+        if "/u/login" in landed or "/signin-service" in landed:
+            raise AuthenticationError(
+                "Website authproxy: SSO session expired — full re-login required"
+            )
+        sso_error = parse_qs(urlparse(landed).query).get("error", [None])[0]
+        if sso_error:
+            raise AuthenticationError(
+                f"Website authproxy: silent refresh failed (error={sso_error})"
+            )
         if status < 400 and urlparse(landed).netloc == urlparse(_SITE_BASE).netloc:
-            # SSO cookie carried us straight back to the site — done.
-            self._finalise_login(landed)
-            if self.logged_in:
-                return
-        # SSO did not short-circuit — fall back to a full login.
-        result = await self.begin_login()
-        if result == "otp_required":
-            raise EmailTwoFactorRequiredError()
+            self.logged_in = True
+            _LOGGER.info(
+                "Website authproxy: silent refresh resumed the session"
+                " (prompt=none, no OTP)"
+            )
+            return
+        raise AuthenticationError(
+            f"Website authproxy: refresh did not land on the portal ({landed[:80]})"
+        )
 
     def _finalise_login(self, landed_url: str) -> None:
         """Mark logged-in iff we ended back on the volkswagen.de host."""
