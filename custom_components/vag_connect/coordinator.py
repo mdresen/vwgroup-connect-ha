@@ -1110,6 +1110,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 raise_issue_supplementary_reauth(self.hass, self.entry.entry_id)
             else:
                 clear_supplementary_reauth_issue(self.hass, self.entry.entry_id)
+        else:
+            # b11 — vw.de not configured (or just removed via the off-switch):
+            # clear any stale "re-login" Repair so a removed channel stops nagging.
+            from .repairs import (  # noqa: PLC0415
+                clear_supplementary_reauth_issue,
+            )
+            clear_supplementary_reauth_issue(self.hass, self.entry.entry_id)
 
         # ── EU Data Act portal supplementary (email/pw, reliable) ───────────
         arm_portal = getattr(client, "arm_supplementary_eu_portal", None)

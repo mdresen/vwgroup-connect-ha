@@ -1377,13 +1377,36 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             if user_input.pop(CONF_SUPPLEMENTARY_EU_PORTAL, False):
                 self._oportal_pending_options = dict(user_input)
                 return await self.async_step_add_portal()
+            # b11 — OFF-switch for the supplementary channels. Without this a
+            # channel could only ever be ADDED (the toggles above route on True),
+            # so a stuck/dead/redundant supplementary kept failing every restart
+            # with no way to remove it. Ticking a remove-toggle clears it from
+            # entry.data + reloads. Shown in the schema only when it's active.
+            remove_web = user_input.pop("remove_supplementary_authproxy", False)
+            remove_portal = user_input.pop("remove_supplementary_eu_portal", False)
+            if remove_web or remove_portal:
+                new_data = {**self._config_entry.data}
+                if remove_web:
+                    new_data.pop(CONF_SUPPLEMENTARY_AUTHPROXY, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES, None)
+                if remove_portal:
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD, None)
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry, data=new_data,
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+                return self.async_create_entry(title="", data=user_input)
             return self.async_create_entry(title="", data=user_input)
 
         current_data = self._config_entry.data
         current_options = self._config_entry.options
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema({
+        schema: dict[Any, Any] = {
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
                     default=current_options.get(
@@ -1569,7 +1592,21 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     CONF_SUPPLEMENTARY_EU_PORTAL,
                     default=False,
                 ): _BOOL_SELECTOR,
-            }),
+        }
+        # b11 — only surface a remove-toggle for a channel that's actually
+        # active, so a stuck/redundant supplementary can be turned off (and the
+        # form stays uncluttered for everyone else).
+        if current_data.get(CONF_SUPPLEMENTARY_AUTHPROXY):
+            schema[vol.Optional(
+                "remove_supplementary_authproxy", default=False,
+            )] = _BOOL_SELECTOR
+        if current_data.get(CONF_SUPPLEMENTARY_EU_PORTAL):
+            schema[vol.Optional(
+                "remove_supplementary_eu_portal", default=False,
+            )] = _BOOL_SELECTOR
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(schema),
         )
 
     # ── b8/C1: supplementary EU Data Act portal read-channel sub-flow ───────

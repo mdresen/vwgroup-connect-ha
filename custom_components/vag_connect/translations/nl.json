@@ -180,7 +180,9 @@
           "enable_data_act_browser": "EU Data Act-portaal: headless-browser-fallback (EXPERIMENTEEL)",
           "supplementary_authproxy": "Volkswagen.de-leeskanaal toevoegen (gegevens samenvoegen)",
           "hide_empty_entities": "Entiteiten zonder gegevens verbergen",
-          "supplementary_eu_portal": "EU Data Act-portaal-leeskanaal toevoegen"
+          "supplementary_eu_portal": "EU Data Act-portaal-leeskanaal toevoegen",
+          "remove_supplementary_authproxy": "vw.de-leeskanaal verwijderen",
+          "remove_supplementary_eu_portal": "EU Data Act-portaal-leeskanaal verwijderen"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",

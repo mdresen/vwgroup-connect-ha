@@ -180,7 +180,9 @@
           "enable_data_act_browser": "EU Data Act-portalen: headless-webbläsar-fallback (EXPERIMENTELL)",
           "supplementary_authproxy": "Lägg till en Volkswagen.de-läskanal (slå samman data)",
           "hide_empty_entities": "Dölj entiteter utan data",
-          "supplementary_eu_portal": "Lägg till en EU Data Act-portalläskanal"
+          "supplementary_eu_portal": "Lägg till en EU Data Act-portalläskanal",
+          "remove_supplementary_authproxy": "Ta bort vw.de-läskanalen",
+          "remove_supplementary_eu_portal": "Ta bort EU Data Act-portalläskanalen"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",

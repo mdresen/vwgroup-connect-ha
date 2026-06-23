@@ -46,6 +46,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Durable-MBB entries stopped working about an hour after setup.** The MBB bearer was only ever refreshed when a request came back with "expired" — but the main MBB reads deliberately don't trigger a refresh on a rejection (to avoid hammering the login endpoint when the car's data access is simply restricted). The result: once the bearer actually expired, every read failed with "token expired" until a restart. It's now refreshed proactively, just before it expires, so an MBB entry (and its remote commands) stays alive on its own. This is what makes the "commands via MBB + reads via the EU Data Act portal" combination usable unattended.
 
+### Added
+
+- **You can now remove a supplementary read channel.** Until now the vw.de and EU Data Act portal read-channel toggles could only ADD a channel — once added there was no way to turn one back off, so a redundant or no-longer-resuming channel kept retrying (and showing a "re-add" repair) on every restart. The options now show a "Remove …" toggle for each channel that's currently active; ticking it clears that channel and reloads, and any leftover "re-add" repair is cleared with it.
+
 ## [2.15.0b10] - 2026-06-23
 
 > **Beta / pre-release** — EU Data Act portal: many more signals mapped, a lock-state bug fixed, and a tidier Scout. (Includes the b9 vw.de silent-resume fix.)

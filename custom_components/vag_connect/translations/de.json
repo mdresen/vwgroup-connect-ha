@@ -182,7 +182,9 @@
           "eu_data_act_auto_kickoff": "EU Data Act: Custom Data Request automatisch anlegen",
           "supplementary_authproxy": "Volkswagen.de-Lesekanal hinzufügen (Daten zusammenführen)",
           "hide_empty_entities": "Entitäten ohne Daten ausblenden",
-          "supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal hinzufügen"
+          "supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal hinzufügen",
+          "remove_supplementary_authproxy": "vw.de-Lesekanal entfernen",
+          "remove_supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal entfernen"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",

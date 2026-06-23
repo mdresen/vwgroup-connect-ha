@@ -180,7 +180,9 @@
           "enable_data_act_browser": "Portál EU Data Act: záloha přes headless prohlížeč (EXPERIMENTÁLNÍ)",
           "supplementary_authproxy": "Přidat čtecí kanál Volkswagen.de (sloučit data)",
           "hide_empty_entities": "Skrýt entity bez dat",
-          "supplementary_eu_portal": "Přidat čtecí kanál portálu EU Data Act"
+          "supplementary_eu_portal": "Přidat čtecí kanál portálu EU Data Act",
+          "remove_supplementary_authproxy": "Odebrat čtecí kanál vw.de",
+          "remove_supplementary_eu_portal": "Odebrat čtecí kanál portálu EU Data Act"
         },
         "data_description": {
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",

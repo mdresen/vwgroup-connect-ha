@@ -180,7 +180,9 @@
           "enable_data_act_browser": "Portail EU Data Act : repli navigateur headless (EXPÉRIMENTAL)",
           "supplementary_authproxy": "Ajouter un canal de lecture Volkswagen.de (fusionner les données)",
           "hide_empty_entities": "Masquer les entités sans données",
-          "supplementary_eu_portal": "Ajouter un canal de lecture du portail EU Data Act"
+          "supplementary_eu_portal": "Ajouter un canal de lecture du portail EU Data Act",
+          "remove_supplementary_authproxy": "Supprimer le canal de lecture vw.de",
+          "remove_supplementary_eu_portal": "Supprimer le canal de lecture du portail EU Data Act"
         },
         "data_description": {
           "scan_interval": "Fréquence de mise à jour (minutes). Minimum: 3.",

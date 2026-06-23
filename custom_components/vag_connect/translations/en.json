@@ -182,7 +182,9 @@
           "enable_data_act_browser": "EU Data Act portal: headless-browser fallback (EXPERIMENTAL)",
           "supplementary_authproxy": "Add a Volkswagen.de read channel (merge extra data)",
           "hide_empty_entities": "Hide entities without data",
-          "supplementary_eu_portal": "Add an EU Data Act portal read channel"
+          "supplementary_eu_portal": "Add an EU Data Act portal read channel",
+          "remove_supplementary_authproxy": "Remove the vw.de read channel",
+          "remove_supplementary_eu_portal": "Remove the EU Data Act portal read channel"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
