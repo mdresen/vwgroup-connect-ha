@@ -177,7 +177,8 @@
           "wake_delay_seconds": "Wake delay (seconds)",
           "client_id_override": "OAuth client_id override (power users)",
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
-          "enable_data_act_browser": "EU Data Act-portalen: headless-webbläsar-fallback (EXPERIMENTELL)"
+          "enable_data_act_browser": "EU Data Act-portalen: headless-webbläsar-fallback (EXPERIMENTELL)",
+          "supplementary_authproxy": "Lägg till en Volkswagen.de-läskanal (slå samman data)"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -193,6 +194,30 @@
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
           "enable_data_act_browser": "EXPERIMENTELL: bara meningsfullt när integrationen har fallit tillbaka på EU Data Act-portalen (skrivskyddad). Styr en headless Chromium via det valfria Python-paketet 'playwright' för att automatiskt klicka på portalens dataexport-knapp. Paketet är INTE förinstallerat (det hämtar runt 100 MB Chromium). När det är aktiverat men saknas förklarar en Reparation-avisering hur du installerar det inifrån Home Assistant-containern. Ladda om integrationen efter att du växlat."
+        }
+      },
+      "add_vwde": {
+        "title": "Volkswagen.de website (BETA, read-only)",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "scan_interval": "Update Interval"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password.",
+          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+        }
+      },
+      "add_vwde_otp": {
+        "title": "Email verification code",
+        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "data": {
+          "mfa_code": "Verification Code"
+        },
+        "data_description": {
+          "mfa_code": "Code from your email inbox — valid for a few minutes."
         }
       }
     }
