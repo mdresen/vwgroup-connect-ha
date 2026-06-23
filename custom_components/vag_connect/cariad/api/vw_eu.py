@@ -1041,16 +1041,31 @@ class VWEUClient(CariadBaseClient):
             headers.update(extra)
         return headers
 
+    async def _mbb_ensure_fresh(self) -> None:
+        """b11 — PROACTIVELY refresh the durable MBB bearer before it expires.
+
+        The key MBB reads (operationList, VSR) run with ``_retry=False`` so a
+        data-plane ACL 401 can't trigger a refresh storm — which means the
+        reactive 401→refresh path is disabled for them. So the ONLY thing that
+        keeps the bearer alive is this pre-flight check: when the token is within
+        the 60s expiry skew, refresh it now via the durable MBB branch. (The
+        operationList comment used to assume a "scheduled refresh" that never
+        existed — this is it.) No-op for non-MBB strategies and fresh tokens.
+        """
+        tok = self._tokens
+        if tok and tok.strategy == "mbb" and tok.needs_refresh():
+            await self._refresh_tokens()
+
     async def _mbb_get(self, url: str, *, _retry: bool = True) -> dict[str, Any]:
         """GET an MBB endpoint with the MBB bearer + registered X-Client-Id.
 
-        On a 401 (expired MBB bearer) refresh ONCE via the durable MBB
-        refresh branch and retry. These requests bypass ``base._request``
-        (the usual 401→refresh trigger), so this is the only place the
-        durable MBB refresh fires from the read/command path. The storm
-        guard in ``_refresh_tokens`` bounds retries; ``_retry=False`` on
-        the second attempt prevents recursion.
+        Pre-flight refreshes the bearer if it's expiring (``_mbb_ensure_fresh``).
+        On a 401 (expired MBB bearer) refresh ONCE via the durable MBB refresh
+        branch and retry. These requests bypass ``base._request`` (the usual
+        401→refresh trigger). The storm guard in ``_refresh_tokens`` bounds
+        retries; ``_retry=False`` on the second attempt prevents recursion.
         """
+        await self._mbb_ensure_fresh()
         async with self._session.get(url, headers=self._mbb_headers()) as resp:
             text = await resp.text()
             if resp.status == 401 and _retry:
@@ -1073,6 +1088,7 @@ class VWEUClient(CariadBaseClient):
 
         Refreshes once on a 401 and retries (see ``_mbb_get``).
         """
+        await self._mbb_ensure_fresh()
         headers = self._mbb_headers({"Content-Type": "application/json"})
         async with self._session.post(url, json=body, headers=headers) as resp:
             text = await resp.text()
@@ -1103,6 +1119,7 @@ class VWEUClient(CariadBaseClient):
         """
         from .._mbb import MBB_RLU_CONTENT_TYPE  # noqa: PLC0415
 
+        await self._mbb_ensure_fresh()
         headers = self._mbb_headers({
             "Content-Type": MBB_RLU_CONTENT_TYPE,
             "x-securityToken": sec_token,
@@ -1252,8 +1269,10 @@ class VWEUClient(CariadBaseClient):
             # v2.15.0a10 — _retry=False: a 401 here is the data-plane ACL
             # rejecting the MBB read, NOT an expired bearer. The default
             # 401→refresh would hammer the refresh endpoint every poll and trip
-            # the refresh-storm guard (IP-ban risk, seen live). The scheduled
-            # refresh keeps the bearer fresh; a genuine expiry recovers next poll.
+            # the refresh-storm guard (IP-ban risk, seen live). b11 — the bearer
+            # is instead kept fresh PROACTIVELY by _mbb_ensure_fresh() inside
+            # _mbb_get (refresh within the 60s expiry skew), so a genuine expiry
+            # no longer leaves every read 401-ing until restart.
             resp = await self._mbb_get(url, _retry=False)
         except APIError as err:
             _LOGGER.warning(
@@ -1508,6 +1527,7 @@ class VWEUClient(CariadBaseClient):
     ) -> dict[str, Any]:
         """POST an MBB write-command action (XML body) with the level-2
         x-securityToken + the vendor content-type. Refresh-once on 401."""
+        await self._mbb_ensure_fresh()
         headers = self._mbb_headers({
             "Content-Type": content_type,
             "x-securityToken": sec_token,
