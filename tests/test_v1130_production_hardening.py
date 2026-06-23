@@ -286,6 +286,33 @@ class TestDiagnosticsPolish:
         ):
             assert key in _REDACT_KEYS, f"missing token key: {key}"
 
+    def test_supplementary_credentials_in_redact_keys(self):
+        # b11 — the b8/b9 supplementary-channel secrets MUST be redacted; the
+        # portal password leaked in PLAINTEXT in a diagnostics download before.
+        from custom_components.vag_connect.diagnostics import _REDACT_KEYS
+
+        for key in (
+            "supplementary_eu_portal_password",
+            "supplementary_eu_portal_username",
+            "supplementary_authproxy_cookies",
+        ):
+            assert key in _REDACT_KEYS, f"missing supplementary key: {key}"
+
+    def test_scrub_redacts_supplementary_secrets(self):
+        from custom_components.vag_connect.diagnostics import _scrub
+
+        out = _scrub({
+            "supplementary_eu_portal_password": "hunter2",
+            "supplementary_eu_portal_username": "p@x.com",
+            "supplementary_authproxy_cookies": [{"name": "auth0-mf", "value": "SECRET"}],
+            "scan_interval": 10,
+        })
+        assert out["supplementary_eu_portal_password"] == "**REDACTED**"
+        assert out["supplementary_eu_portal_username"] == "**REDACTED**"
+        assert out["supplementary_authproxy_cookies"] == "**REDACTED**"
+        assert "SECRET" not in str(out)  # the SSO cookie value never survives
+        assert out["scan_interval"] == 10
+
     def test_email_partial_mask(self):
         from custom_components.vag_connect.diagnostics import _mask_email
 

@@ -38,6 +38,9 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_PASSWORD,
     CONF_SPIN,
+    CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+    CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
+    CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
     CONF_USERNAME,
 )
 from .coordinator import VagConnectCoordinator
@@ -64,6 +67,13 @@ _REDACT_KEYS = frozenset({
     "idToken",
     "id_token_hint",
     "client_secret",
+    # b11 — supplementary-channel credentials/secrets (added in b8/b9 but never
+    # registered here, so the portal password leaked in PLAINTEXT in the
+    # diagnostics download — exactly the file users attach to GitHub issues).
+    # The vw.de cookie list carries the auth0 / auth0-mf SSO session tokens.
+    CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
+    CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
+    CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
 })
 
 # v1.13.0 (#62) — email partial-mask. Keeps domain TLD shape (e.g.
