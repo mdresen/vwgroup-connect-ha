@@ -1333,6 +1333,11 @@ class VehicleData:
     # ("old but visible") instead of blanking entities — but only when prior
     # data exists, so a brand-new car still appears and fills in later.
     no_data: bool = False
+    # v2.15.0b1 (B1) — provenance: which channel(s) produced this snapshot.
+    # Set by the channel-merge layer to the "+"-joined contributing channels
+    # (e.g. "eu_data_act+mbb"); None for a single-channel poll. Surfaced as a
+    # diagnostic attribute so users/maintainers can see where data came from.
+    source_channel: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""
