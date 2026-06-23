@@ -38,17 +38,32 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.15.0a13] - 2026-06-22
+## [2.15.0b1] - 2026-06-23
 
-> **Alpha / pre-release** — EU Data Act read-path: data-quality hardening + more portal fields.
+> **Beta / pre-release** — bundles the unreleased a11–a13 work plus the EU Data Act read-path expansion, the official data dictionary + raw-field discovery, the multi-channel merge with a live vw.de opt-in, and reliability hardening. Install via the HACS beta channel to test.
 
-### Improved
+### Added
 
-- **Bogus "no reading" values no longer reach your dashboard.** The EU Data Act portal ships sentinel markers (65535 / 2147483647 / 4294967295, plus -1 for charging-time and 0/1 for unsupported tyre-pressure) when a value is unavailable. These used to land as real SoC / range / odometer readings and permanently poison long-term statistics. They're now filtered out, with table-driven field-specific rules and a debug log on every drop.
-- **The odometer never jumps backwards.** Out-of-order portal snapshots could briefly lower the mileage/odometer; monotonic fields now keep the highest reading regardless of delivery order.
-- **Fresher value selection for fields without their own timestamp.** Bare value fields now inherit the dataset's capture time, so the freshest snapshot wins consistently instead of "last one in the file".
-- **More vehicle data from the EU Data Act portal.** Added charge-rate and plug-connection mapping, so the portal channel now fills more entities directly. Purely additive — every existing field mapping is unchanged.
-- **Automatic discovery of unmapped portal fields.** Every portal field we don't yet map is now logged (debug level), so new sensors get added from real-world payloads instead of guesswork — and it feeds the Vehicle Data Scout. Coverage grows safely from real data instead of shipping a large static guess.
+- **Rich EU Data Act reads for legacy & PHEV cars, with miles→km auto-conversion.** Flat field names used by older Golf GTE and PHEV vehicles now map cleanly — fuel level, oil level, outside temperature, service intervals — instead of being silently skipped. Distance units are detected and converted (miles → km via the companion unit field) so readings land in the car's market unit. Drivetrain detection now infers electric/combustion/hybrid from the data present, fixing EVs shown as combustion-only and PHEVs as neither.
+- **The official EU Data Act data dictionary (V5.0, 1142 fields).** The Vehicle Data Scout report now names an unmapped field from the official spec when its path is a known identifier — opaque UUIDs become human names for maintainers.
+- **Raw field discovery — one diagnostic sensor for unmapped portal fields.** A single disabled-by-default sensor per car shows how many portal fields aren't curated yet, with the full value set in its attributes. Same detection that feeds the Scout, so you see every value the backend sent without waiting for a curated mapping — and without an entity per field. Available in all 8 languages.
+- **Multi-channel data merge with provenance.** For cars whose data is split across channels (fuel on one, SoC on another, odometer on a third), a field-level union now gap-fills in priority order — the highest-trust channel is never overwritten — and records which channels contributed in a new "Data source channel" diagnostic sensor.
+- **Live multi-channel polling: opt-in vw.de read channel.** A new "Add a Volkswagen.de read channel" option pulls VIN / odometer / service / master data from volkswagen.de in parallel and merges it onto your primary channel. Read-only, Volkswagen-only (email + email-OTP). Single-channel setups are byte-for-byte unchanged, and it fails gracefully if vw.de is unavailable.
+- **MBB "two-way available" diagnostic sensor.** Tells you when the durable Car-Net backend grants a remote command (climate/charge) on a currently-licensed service — derived from the operation list, no extra request, icon-only.
+- **Charge-rate and plug-connection mapping** from the EU Data Act portal, plus the energy-dashboard tip in the README (use the cumulative charged-energy sensor, not the per-100 km averages). Bentley added to the brand table.
+
+### Fixed
+
+- **Account rate-limit protection.** When the backend hard-limits (HTTP 430, or 429 after retries are spent), the integration now pauses all requests on that account for a cool-down (429 → 30 min, 430 → 2 h) instead of hammering and risking an IP ban. Self-clears on expiry.
+- **Bogus "no reading" values no longer reach your dashboard.** Portal sentinel markers (65535 / 2147483647 / 4294967295, −1 charging-time, 0/1 tyre-pressure) are filtered out instead of poisoning SoC / range / odometer statistics. The odometer also never jumps backwards — monotonic fields keep the highest reading regardless of delivery order — and bare fields inherit the dataset capture time so the freshest snapshot wins.
+- **Per-session/trip kWh deltas no longer carry the energy device-class** (HA 2026.6 rejects energy + measurement together).
+- **No source-aliasing in the merge** — gap-filled list/dict fields are deep-copied so a merged result can't be corrupted by a later change to a source snapshot.
+
+### Changed
+
+- **VW enum labels shortened for display** (strip CHARGE_STATE_/CHARGING_MODE_/PLUG_STATE_… prefixes) so charging state reads cleanly — display only, logic unchanged.
+- **Coordinator passes its config entry explicitly** (HA 2026.8 readiness).
+- **Automatic discovery of unmapped portal fields** keeps logging the long tail so coverage grows from real payloads, not guesswork. Test suite modernized for Python 3.14.
 
 ## [2.15.0a10] - 2026-06-22
 
