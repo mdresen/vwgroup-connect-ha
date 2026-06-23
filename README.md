@@ -105,6 +105,8 @@ It surfaces battery & charging state, range, odometer, climate, doors & windows,
 - **Device tracker:** GPS position for the Home Assistant map.
 - **Images:** vehicle renders where the brand provides them.
 
+> 💡 **Energy dashboard:** the charged-energy sensor is `total_increasing`, so add it to the Home Assistant **Energy dashboard** directly, or wrap it in a `utility_meter` helper for daily/monthly charged-energy totals. Use the cumulative **charged-energy (kWh)** sensor for this — not the per-100 km efficiency sensors (those are averages, not meters).
+
 ---
 
 ## Support this project ❤️
