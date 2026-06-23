@@ -692,6 +692,18 @@
       },
       "vehicle_nickname": {
         "name": "Voertuigbijnaam"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Gemiddelde snelheid totaal"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Rijtijd totaal"
+      },
+      "monthly_mileage_km": {
+        "name": "Maandelijkse kilometerstand"
+      },
+      "remaining_charge_time_min": {
+        "name": "Resterende laadtijd"
       }
     },
     "binary_sensor": {
@@ -859,6 +871,9 @@
       },
       "trunk_open": {
         "name": "Kofferbak open"
+      },
+      "warning_inspection": {
+        "name": "Inspectie nodig"
       }
     },
     "switch": {

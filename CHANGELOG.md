@@ -38,6 +38,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b10] - 2026-06-23
+
+> **Beta / pre-release** — EU Data Act portal: many more signals mapped, a lock-state bug fixed, and a tidier Scout. (Includes the b9 vw.de silent-resume fix.)
+
+### Fixed
+
+- **The "doors locked" sensor could read *unlocked* on a locked car.** The portal reports each door's lock state individually (and no single overall flag), which we weren't reading — so the lock sensor fell back to a stale/empty value and showed unlocked. It's now derived from the actual per-door lock states, so a fully-locked car reads locked.
+
+### Added
+
+- **Lots more from the EU Data Act portal, now as proper sensors.** Per-door open + lock states, the tailgate and bonnet, per-window open/closed + how far each window is down, last-trip distance & duration, lifetime average speed & driving time, average monthly mileage, an inspection-due warning, and remaining charge/climate time — all read from the portal and mapped onto the right entities (enum meanings + units taken from the official data dictionary).
+- **The Vehicle Data Scout report now shows the official spec name** for each unknown field (it was blank before because the lookup didn't match the portal's field names).
+
+### Changed
+
+- **The Vehicle Data Scout is less noisy.** Pure plumbing / identity fields (request ids, hashed account id, VIN, envelope timestamps, measurement-quality flags) are no longer reported as "new fields" — only real vehicle signals are.
+
 ## [2.15.0b9] - 2026-06-23
 
 > **Beta / pre-release** — the vw.de channel finally resumes silently (no more code-email on every restart).

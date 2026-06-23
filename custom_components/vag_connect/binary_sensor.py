@@ -172,6 +172,14 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:oil",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    VagBinarySensorDescription(  # b10 — EU Data Act portal inspection warning
+        key="warning_inspection",
+        translation_key="warning_inspection",
+        data_key="warning_inspection",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        icon="mdi:car-wrench",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     VagBinarySensorDescription(
         key="warning_tyre",
         translation_key="warning_tyre",

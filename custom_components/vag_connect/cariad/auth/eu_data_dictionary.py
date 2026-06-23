@@ -35,15 +35,32 @@ def _load() -> dict[str, dict[str, Any]]:
     }
 
 
+@lru_cache(maxsize=1)
+def _by_name() -> dict[str, dict[str, Any]]:
+    """Secondary index: official field NAME → spec entry. The EU Data Act portal
+    returns NAMED fields (``locked_state_front_left_door``), not the UUIDs the
+    primary table is keyed by — so name lookup is what the Scout + raw-discovery
+    actually need (first name wins on the few duplicate names)."""
+    out: dict[str, dict[str, Any]] = {}
+    for entry in _load().values():
+        name = entry.get("name")
+        if isinstance(name, str) and name and name not in out:
+            out[name] = entry
+    return out
+
+
 def lookup(key: str | None) -> dict[str, Any] | None:
-    """Return the spec entry for a field UUID. Accepts a dotted path and falls
-    back to its last segment (the portal nests the UUID under a path)."""
+    """Return the spec entry for a field UUID **or official name**. Accepts a
+    dotted path (``eu_data_act.<field>``) and falls back to its last segment;
+    tries the UUID table first, then the name index."""
     if not key:
         return None
     table = _load()
-    entry = table.get(key)
-    if entry is None and "." in key:
-        entry = table.get(key.rsplit(".", 1)[-1])
+    bare = key.rsplit(".", 1)[-1] if "." in key else key
+    entry = table.get(key) or table.get(bare)
+    if entry is None:
+        # portal payloads carry NAMES, not UUIDs → resolve via the name index
+        entry = _by_name().get(bare)
     return entry
 
 

@@ -692,6 +692,18 @@
       },
       "vehicle_nickname": {
         "name": "Pseudonim pojazdu"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Średnia prędkość (całość)"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Czas jazdy (całość)"
+      },
+      "monthly_mileage_km": {
+        "name": "Miesięczny przebieg"
+      },
+      "remaining_charge_time_min": {
+        "name": "Pozostały czas ładowania"
       }
     },
     "binary_sensor": {
@@ -859,6 +871,9 @@
       },
       "trunk_open": {
         "name": "Bagażnik otwarty"
+      },
+      "warning_inspection": {
+        "name": "Przegląd wymagany"
       }
     },
     "switch": {

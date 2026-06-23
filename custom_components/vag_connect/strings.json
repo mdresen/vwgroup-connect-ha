@@ -694,6 +694,18 @@
       },
       "last_trip_reset_at": {
         "name": "Last Trip Reset"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Lifetime Average Speed"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Lifetime Driving Time"
+      },
+      "monthly_mileage_km": {
+        "name": "Monthly Mileage"
+      },
+      "remaining_charge_time_min": {
+        "name": "Remaining Charge Time"
       }
     },
     "binary_sensor": {
@@ -861,6 +873,9 @@
       },
       "permission_can_command": {
         "name": "Account can send commands"
+      },
+      "warning_inspection": {
+        "name": "Inspection Due"
       }
     },
     "switch": {

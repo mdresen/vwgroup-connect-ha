@@ -694,6 +694,18 @@
       },
       "vehicle_nickname": {
         "name": "Vehicle Nickname"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Lifetime Average Speed"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Lifetime Driving Time"
+      },
+      "monthly_mileage_km": {
+        "name": "Monthly Mileage"
+      },
+      "remaining_charge_time_min": {
+        "name": "Remaining Charge Time"
       }
     },
     "binary_sensor": {
@@ -861,6 +873,9 @@
       },
       "trunk_open": {
         "name": "Trunk Open"
+      },
+      "warning_inspection": {
+        "name": "Inspection Due"
       }
     },
     "switch": {

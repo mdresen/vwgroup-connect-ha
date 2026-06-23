@@ -497,6 +497,25 @@ def _shorten_enum(value: str | None) -> str | None:
 # so a pathological payload can't bloat the recorder / state machine.
 _RAW_FIELD_CAP = 250
 
+# b10 — pure plumbing / PII / envelope fields that are never vehicle telemetry.
+# Suppressed from the Scout + raw-discovery so the report shows only real signals
+# (the portal nests some under a path, e.g. ``Data.key`` → match the bare tail).
+_SCOUT_SKIP_FIELDS: frozenset[str] = frozenset({
+    "echo",                      # constant marker, value == "echo"
+    "key",                       # per-poll request id
+    "user_id",                   # hashed account id (PII) — never an entity
+    "vin",                       # identity, already the device key
+    "timestampUtc",              # envelope timestamp; freshness handled elsewhere
+    "fuel_level__accuracy",      # measurement-quality flag, not a reading
+    "window_heating_error_code", # non-customer-facing error code
+})
+
+
+def _is_noise(name: str) -> bool:
+    """True for plumbing/PII/envelope field names that should not reach the
+    Scout — matched on the bare key and on a dotted path's trailing segment."""
+    return name in _SCOUT_SKIP_FIELDS or name.rsplit(".", 1)[-1] in _SCOUT_SKIP_FIELDS
+
 
 def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
@@ -659,6 +678,107 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if whr is not None and d.window_heating_back is None:
         d.window_heating_back = str(whr).lower() in ("on", "active", "true", "1")
 
+    # ── b10 — portal long-tail (doors/windows/trip/maintenance) ─────────────
+    # Enum families resolved from the official data dictionary:
+    #   lock-state    2=locked / 3=unlocked
+    #   open-state    2=open   / 3=closed   (doors, hood, tailgate)
+    #   window-lifter 2=open   / 3=closed
+    #   0=unsupported, 1=invalid → ignore. position fields are % open (0=closed).
+
+    # doors_locked from the PER-DOOR lock states. This is the authoritative
+    # signal on the portal's payload (the bare `locked` field is absent/stale —
+    # it was wrongly reporting an unlocked car), so it OVERRIDES the block above.
+    _locks = [
+        _to_int(first("locked_state_front_left_door")),
+        _to_int(first("locked_state_front_right_door")),
+        _to_int(first("locked_state__rear_left_door")),   # double underscore in spec
+        _to_int(first("locked_state_rear_right_door")),
+    ]
+    _tail_lock = _to_int(first("locked_state_tailgate"))
+    _lock_vals = [v for v in (*_locks, _tail_lock) if v in (2, 3)]
+    if _lock_vals:
+        d.doors_locked = all(v == 2 for v in _lock_vals)  # any unlocked → False
+    if _tail_lock in (2, 3) and d.trunk_locked is None:
+        d.trunk_locked = _tail_lock == 2
+
+    # open-state → doors_individual (True == OPEN, matching the vw_eu polarity)
+    for _slot, _name in (
+        ("frontLeft", "open_state_front_left_door"),
+        ("frontRight", "open_state_front_right_door"),
+        ("rearLeft", "open_state_rear_left_door"),
+        ("rearRight", "open_state_rear_right_door"),
+    ):
+        _ov = _to_int(first(_name))
+        if _ov in (2, 3):
+            d.doors_individual[_slot] = _ov == 2
+    if d.doors_individual and d.doors_open is None:
+        d.doors_open = any(d.doors_individual.values())
+    _tail_open = _to_int(first("open_state_tailgate"))
+    if _tail_open in (2, 3) and d.trunk_open is None:
+        d.trunk_open = _tail_open == 2
+    _bonnet_open = _to_int(first("open_state_front_engine_bonnet"))
+    if _bonnet_open in (2, 3) and d.hood_open is None:
+        d.hood_open = _bonnet_open == 2
+
+    # window-lifter state → windows_individual (True == CLOSED, per the model
+    # convention) + windows_open aggregate; position is % open.
+    for _slot, _name in (
+        ("frontLeft", "state_front_left_door_window_lifter"),
+        ("frontRight", "state_front_right_door_window_lifter"),
+        ("rearLeft", "state_rear_left_door_window_lifter"),
+        ("rearRight", "state_rear_right_door_window_lifter"),
+    ):
+        _wv = _to_int(first(_name))
+        if _wv in (2, 3):
+            d.windows_individual[_slot] = _wv == 3
+    if d.windows_individual and d.windows_open is None:
+        d.windows_open = any(v is False for v in d.windows_individual.values())
+    for _slot, _name in (
+        ("frontLeft", "position_front_left_door_window_lifter"),
+        ("frontRight", "position_front_right_door_window_lifter"),
+        ("rearLeft", "position_rear_left_door_window_lifter"),
+        ("rearRight", "position_rear_right_door_window_lifter"),
+    ):
+        _pv = _to_int(first(_name))
+        if _pv is not None:
+            d.windows_position[_slot] = _pv
+
+    # trip statistics (short-term → last trip, long-term → lifetime). Units from
+    # the dictionary: mileage km, travel_time min, speed km/h. Consumption fields
+    # (l/1000km, kWh/1000km) are deferred — current values look like sentinels;
+    # they stay Scout-visible for a live A/B before we trust the scale.
+    _st_dist = _to_float(first("short_term_data_mileage"))
+    if _st_dist is not None and d.last_trip_distance_km is None:
+        d.last_trip_distance_km = _st_dist
+    _st_time = _to_int(first("short_term_data_travel_time"))
+    if _st_time is not None and d.last_trip_duration_min is None:
+        d.last_trip_duration_min = _st_time
+    _lt_speed = _to_float(first("long_term_data_average_speed"))
+    if _lt_speed is not None:
+        d.lifetime_avg_speed_kmh = _lt_speed
+    _lt_time = _to_int(first("long_term_data_travel_time"))
+    if _lt_time is not None:
+        d.lifetime_travel_time_min = _lt_time
+
+    # maintenance — warning flags (1 == active) + average monthly mileage
+    _oilw = _to_int(first("maintenance_interval_oil_change_warning"))
+    if _oilw is not None and d.warning_oil is None:
+        d.warning_oil = _oilw == 1
+    _insw = _to_int(first("maintenance_interval_inspection_warning"))
+    if _insw is not None:
+        d.warning_inspection = _insw == 1
+    _mm = _to_int(first("maintenance_interval_monthly_mileage"))
+    if _mm is not None:
+        d.monthly_mileage_km = _mm
+
+    # remaining times (minutes)
+    _rcl = _to_int(first("remaining_climatisation_time"))
+    if _rcl is not None and d.climate_remaining_time_min is None:
+        d.climate_remaining_time_min = _rcl
+    _rch = _to_int(first("remaining_charging_time"))
+    if _rch is not None and d.remaining_charge_time_min is None:
+        d.remaining_charge_time_min = _rch
+
     # b1/A2 — distance-unit conversion. UK/US cars report distances in miles
     # plus a companion unit field; our sensors are km-typed, so convert once
     # here (km cars hit the no-op branch). Post-process so the individual field
@@ -666,7 +786,8 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")):
         for _attr in ("odometer_km", "range_km", "electric_range_km",
                       "combustion_range_km", "secondary_engine_range_km",
-                      "total_range_km", "service_km", "oil_service_km"):
+                      "total_range_km", "service_km", "oil_service_km",
+                      "monthly_mileage_km", "last_trip_distance_km"):
             _val = getattr(d, _attr)
             if _val is not None:
                 setattr(d, _attr, round(_val * 1.60934))
@@ -691,7 +812,7 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     # Debug-only, zero behaviour change. Feeds the Vehicle Data Scout and tells
     # us exactly which dictionary entries to add next, from REAL payloads —
     # beats a hand-maintained static dict that silently drops unknown fields.
-    unmapped = sorted(k for k in fields if k not in used)
+    unmapped = sorted(k for k in fields if k not in used and not _is_noise(k))
     if unmapped:
         _LOGGER.debug(
             "EU Data Act: %d unmapped portal field(s): %s",

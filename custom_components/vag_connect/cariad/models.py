@@ -588,6 +588,14 @@ class VehicleData:
     # window closed, False == open. Populated by SEAT/CUPRA OLA paths
     # (status.windows.{position}); other brands leave it empty for now.
     windows_individual: dict[str, bool] = field(default_factory=dict)
+    # b10 (EU Data Act portal long-tail) — extra signals mapped from the portal's
+    # per-window position + trip + maintenance fields.
+    windows_position: dict[str, int] = field(default_factory=dict)  # % open (0=closed)
+    warning_inspection: bool | None = None        # service inspection due
+    monthly_mileage_km: int | None = None         # avg distance driven per month
+    remaining_charge_time_min: int | None = None  # charging time left
+    lifetime_travel_time_min: int | None = None   # cumulative driving time (long-term)
+    lifetime_avg_speed_kmh: float | None = None   # average speed (long-term)
 
     # Location
     latitude: float | None = None

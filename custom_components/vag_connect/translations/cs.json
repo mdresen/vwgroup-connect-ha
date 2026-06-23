@@ -692,6 +692,18 @@
       },
       "vehicle_nickname": {
         "name": "Přezdívka vozidla"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Průměrná rychlost (celkem)"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Doba jízdy (celkem)"
+      },
+      "monthly_mileage_km": {
+        "name": "Měsíční nájezd"
+      },
+      "remaining_charge_time_min": {
+        "name": "Zbývající čas nabíjení"
       }
     },
     "binary_sensor": {
@@ -859,6 +871,9 @@
       },
       "trunk_open": {
         "name": "Kufr otevřený"
+      },
+      "warning_inspection": {
+        "name": "Nutná prohlídka"
       }
     },
     "switch": {

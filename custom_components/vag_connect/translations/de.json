@@ -694,6 +694,18 @@
       },
       "vehicle_nickname": {
         "name": "Fahrzeug-Spitzname"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Ø-Geschwindigkeit gesamt"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Fahrzeit gesamt"
+      },
+      "monthly_mileage_km": {
+        "name": "Monatliche Laufleistung"
+      },
+      "remaining_charge_time_min": {
+        "name": "Restladezeit"
       }
     },
     "binary_sensor": {
@@ -861,6 +873,9 @@
       },
       "trunk_open": {
         "name": "Kofferraum offen"
+      },
+      "warning_inspection": {
+        "name": "Inspektion fällig"
       }
     },
     "switch": {
