@@ -554,33 +554,31 @@ class CariadBaseClient:
         # primary's IDP cookies and fails the resume probe).
         await self.close_supplementary()
         self._supplementary_needs_reauth = False
-        session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True))
+        # Match the config-flow login session (TCPConnector ssl=True) so the
+        # resume probe behaves identically to the proven login path.
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=True),
+            cookie_jar=aiohttp.CookieJar(unsafe=True),
+        )
         try:
             connector = WebsiteAuthProxyConnector(
                 session, self._email, self._password, brand=self._brand.name,
             )
             connector.import_cookies(cookies)
+            # IMPORTANT: only the cheap, side-effect-free session_alive probe —
+            # NEVER begin_login() here. begin_login STARTS the OAuth flow, which
+            # makes the IDP send a NEW email OTP every arm (a code-email storm on
+            # every reload). If the resume probe fails, the session genuinely
+            # needs an interactive re-add (OTP), so surface the Repair instead.
             if not await connector.session_alive():
-                # session_alive is a cheap best-effort probe that returns False
-                # on a redirect; fall back to the full silent login exactly like
-                # the primary website-authproxy path — VALID cookies resume here
-                # WITHOUT an OTP. Only a genuinely dead session needs a re-add.
-                try:
-                    login = await connector.begin_login()
-                except Exception as err:  # noqa: BLE001
-                    login = f"error:{type(err).__name__}"
-                if login != "ok":
-                    # Only an OTP-bound dead session warrants the "re-login"
-                    # Repair prompt; transient/network failures don't.
-                    self._supplementary_needs_reauth = login == "otp_required"
-                    _LOGGER.warning(
-                        "VAG Connect: supplementary vw.de channel could not"
-                        " resume (probe=stale, login=%s) — re-add it from the"
-                        " integration options; the primary channel is"
-                        " unaffected.", login,
-                    )
-                    await session.close()
-                    return False
+                self._supplementary_needs_reauth = True
+                _LOGGER.warning(
+                    "VAG Connect: supplementary vw.de channel could not resume"
+                    " — re-add it from the integration options (it needs a fresh"
+                    " email code); the primary channel is unaffected."
+                )
+                await session.close()
+                return False
             self._supplementary_authproxy = connector
             self._supplementary_session = session
             _LOGGER.info(

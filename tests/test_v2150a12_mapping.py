@@ -142,10 +142,12 @@ class TestB5MaintenanceLock:
             "maintenance_interval_distance_until_oil_change": "-1700",
             "maintenance_interval__time_until_oil_change": "-17",
         })
-        assert d.service_km == -14900
-        assert d.service_due_in_days == -155
-        assert d.oil_service_km == -1700
-        assert d.oil_service_due_in_days == -17
+        # portal ships these negative (remaining-until-due) → we negate so the
+        # sensor reads a positive countdown ("due in 155 days / 14900 km").
+        assert d.service_km == 14900
+        assert d.service_due_in_days == 155
+        assert d.oil_service_km == 1700
+        assert d.oil_service_due_in_days == 17
 
     def test_lock_state(self) -> None:
         assert _map({"lock_state": "locked"}).doors_locked is True

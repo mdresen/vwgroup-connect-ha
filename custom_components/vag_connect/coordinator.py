@@ -1316,7 +1316,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # the brand client opted to stash; never blocks the
                         # poll if the detector itself raises.
                         try:
-                            self._scan_for_unexpected_keys(vin)
+                            self._scan_for_unexpected_keys(vin, fresh.get(vin))
                         except Exception:  # noqa: BLE001
                             pass
                     else:
@@ -1610,7 +1610,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     # ── Vehicle Data Scout + Error Reporter (v1.9.0) ───────────────────────
 
-    def _scan_for_unexpected_keys(self, vin: str) -> None:
+    def _scan_for_unexpected_keys(
+        self, vin: str, vehicle: dict | None = None
+    ) -> None:
         """Run ``detect_unexpected`` over the brand client's stashed responses.
 
         Brand clients opt in by populating ``last_raw_responses`` in
@@ -1634,6 +1636,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             for finding in detect_unexpected(brand, endpoint, payload):
                 # De-dupe by path — keep the first observation timestamp.
                 per_vin.setdefault(finding.path, finding)
+        # b6 — feed the EU Data Act portal fields the curated parser did NOT map
+        # (the A6 raw-discovery set) into the SAME Scout report, so the unmapped
+        # long tail is visible/reportable and we learn what to map next. Endpoint
+        # isn't in EXPECTED_KEYS so detect_unexpected skips it — surface directly.
+        raw = (vehicle or {}).get("raw_unmapped_fields")
+        if isinstance(raw, dict) and raw:
+            from datetime import datetime, timezone  # noqa: PLC0415
+
+            from .cariad._unexpected_keys import mask_value  # noqa: PLC0415
+            now = datetime.now(tz=timezone.utc).isoformat()
+            for name, value in raw.items():
+                path = f"eu_data_act.{name}"
+                per_vin.setdefault(path, UnexpectedField(
+                    path=path,
+                    sample_masked=mask_value(value),
+                    endpoint="eu_data_act",
+                    first_seen_at=now,
+                ))
 
     def _refresh_reporter_issues(self) -> None:
         """Recreate / delete the two HA repair issues from current buffers.

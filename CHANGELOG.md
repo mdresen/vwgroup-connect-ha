@@ -38,6 +38,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b6] - 2026-06-23
+
+> **Beta / pre-release** — service-countdown sign fix, no more vw.de code-email storm, unmapped fields in the Scout.
+
+### Fixed
+
+- **Service & oil-change countdowns now read correctly.** They were showing as overdue (negative) when the car actually has them coming up — the portal reports these as a negative "remaining until due", so "due in 155 days / 14900 km" was landing as −155 / −14900. Now flipped: a positive countdown, and only genuinely-overdue cars go negative.
+- **The vw.de channel no longer triggers a new code-email on every poll.** When its session couldn't be resumed it kept starting a fresh login, which made Volkswagen send a new one-time-code email each cycle. It now only probes (no email) and raises the re-login repair once — re-add it from the options when you're ready, no more code-email storm.
+
+### Changed
+
+- **Unmapped portal fields now also show up in the Vehicle Data Scout report**, not just on the raw-fields sensor — so the long tail of fields we haven't curated yet is visible and one-click reportable, which is how more of them become proper sensors over time.
+
 ## [2.15.0b5] - 2026-06-23
 
 > **Beta / pre-release** — more service data straight from the portal + graceful vw.de re-login.

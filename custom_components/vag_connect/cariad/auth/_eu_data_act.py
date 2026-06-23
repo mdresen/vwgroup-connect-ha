@@ -632,18 +632,21 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     # field discovery surfaced in real Golf-class portal payloads. Mapping them
     # gives the portal channel real service/lock telemetry without the (OTP-bound)
     # vw.de channel. Values are portal-reported; a negative interval = overdue.
+    # The portal reports these as NEGATIVE remaining-until-due (e.g. -155 =
+    # "due in 155 days", -14900 = "due in 14900 km"); negate so the sensors read
+    # as a positive countdown (a value that goes negative = genuinely overdue).
     svc_km = _to_int(first("maintenance_interval_distance_until_inspection"))
     if svc_km is not None and d.service_km is None:
-        d.service_km = svc_km
+        d.service_km = -svc_km
     svc_days = _to_int(first("maintenance_interval__time_until_inspection"))
     if svc_days is not None and d.service_due_in_days is None:
-        d.service_due_in_days = svc_days
+        d.service_due_in_days = -svc_days
     oil_km = _to_int(first("maintenance_interval_distance_until_oil_change"))
     if oil_km is not None and d.oil_service_km is None:
-        d.oil_service_km = oil_km
+        d.oil_service_km = -oil_km
     oil_days = _to_int(first("maintenance_interval__time_until_oil_change"))
     if oil_days is not None and d.oil_service_due_in_days is None:
-        d.oil_service_due_in_days = oil_days
+        d.oil_service_due_in_days = -oil_days
 
     lock = first("lock_state", "central_lock_state")
     if lock is not None and d.doors_locked is None:

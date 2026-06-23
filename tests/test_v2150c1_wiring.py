@@ -90,37 +90,41 @@ class TestArmSupplementary:
         sess.close.assert_not_awaited()
         conn.begin_login.assert_not_awaited()  # alive → no login fallback
 
-    def test_resume_via_begin_login_when_probe_stale(self) -> None:
-        # the b3-regression fix: session_alive is unreliable; valid cookies
-        # still resume via begin_login() WITHOUT an OTP.
+    def test_stale_repairs_without_calling_begin_login(self) -> None:
+        # b6: NEVER call begin_login here — it would make the IDP send a new OTP
+        # email on every arm. Stale probe → flag for re-add (Repair), no spam.
         c = _client()
         sess = MagicMock()
         sess.close = AsyncMock()
         conn = MagicMock()
         conn.import_cookies = MagicMock()
         conn.session_alive = AsyncMock(return_value=False)
-        conn.begin_login = AsyncMock(return_value="ok")
-        with patch("aiohttp.ClientSession", return_value=sess), \
-             patch(_CONN_PATH, return_value=conn):
-            ok = asyncio.run(c.arm_supplementary_authproxy(_COOKIE))
-        assert ok is True
-        assert c._supplementary_authproxy is conn
-        sess.close.assert_not_awaited()
-
-    def test_stale_when_login_needs_otp(self) -> None:
-        c = _client()
-        sess = MagicMock()
-        sess.close = AsyncMock()
-        conn = MagicMock()
-        conn.import_cookies = MagicMock()
-        conn.session_alive = AsyncMock(return_value=False)
-        conn.begin_login = AsyncMock(return_value="otp_required")
+        conn.begin_login = AsyncMock()
         with patch("aiohttp.ClientSession", return_value=sess), \
              patch(_CONN_PATH, return_value=conn):
             ok = asyncio.run(c.arm_supplementary_authproxy(_COOKIE))
         assert ok is False
         assert c._supplementary_authproxy is None
+        assert c._supplementary_needs_reauth is True
+        conn.begin_login.assert_not_awaited()  # no OTP-email storm
         sess.close.assert_awaited()  # isolated session closed, no leak
+
+    def test_scan_feeds_raw_unmapped_into_scout(self) -> None:
+        # b6: the portal's unmapped raw fields are surfaced in the SAME Scout
+        # findings buffer (merge raw-discovery with the Scout notification).
+        stub = type("S", (), {})()
+        stub._cariad_client = MagicMock()
+        stub._cariad_client.last_raw_responses = {}
+        stub.entry = MagicMock()
+        stub.entry.data = {"brand": "volkswagen"}
+        stub.unexpected_findings = {}
+        VagConnectCoordinator._scan_for_unexpected_keys(
+            stub, "X", {"raw_unmapped_fields": {"foo_bar": "42", "baz": "x"}}
+        )
+        findings = stub.unexpected_findings["X"]
+        assert "eu_data_act.foo_bar" in findings
+        assert "eu_data_act.baz" in findings
+        assert findings["eu_data_act.foo_bar"].endpoint == "eu_data_act"
 
     def test_close_supplementary(self) -> None:
         c = _client()
