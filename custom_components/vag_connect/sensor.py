@@ -1894,6 +1894,14 @@ async def async_setup_entry(
     # v1.14.0 (#24) — read brand once for trip-stats brand-restriction.
     brand = str(entry.data.get("brand", "")).lower()
     trip_stats_supported = brand in _TRIP_STATS_BRANDS
+    # b3 — "hide entities without data" (default on): don't flood the device
+    # with "unknown" sensors; only spawn data sensors once their value arrives
+    # (the per-id spawner re-evaluates each poll, so late data still appears).
+    from .const import CONF_HIDE_EMPTY_ENTITIES  # noqa: PLC0415
+    hide_empty = bool(entry.options.get(
+        CONF_HIDE_EMPTY_ENTITIES,
+        entry.data.get(CONF_HIDE_EMPTY_ENTITIES, True),
+    ))
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
@@ -1924,6 +1932,13 @@ async def async_setup_entry(
                     coordinator.command_capability_supported(vin, "command_trip_stats")
                     is False
                 ):
+                    continue
+            # b3 — hide empty: skip data sensors with no value yet (reporters,
+            # which read coordinator state with data_key="", are exempt). The
+            # per-id spawner re-spawns the sensor when its value first arrives.
+            if hide_empty and desc.key not in _REPORTER_KEYS and desc.data_key:
+                _v = vehicle.get(desc.data_key)
+                if _v is None or (isinstance(_v, (list, dict)) and not _v):
                     continue
             if desc.key in _REPORTER_KEYS:
                 entities.append(ReporterSensor(coordinator, vin, desc))

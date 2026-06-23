@@ -689,6 +689,15 @@ async def async_setup_entry(
     all 4 sub-loops (descriptions / doors / windows / lights) run
     per-VIN once, idempotently re-run when new vehicles wake up."""
     coordinator: VagConnectCoordinator = entry.runtime_data
+    # b3 — "hide entities without data" (default on): skip binary sensors whose
+    # value hasn't arrived (None) so the device isn't flooded with "unknown".
+    # Only None is treated as "no data" — False is a real "off" reading. The
+    # per-id spawner re-spawns the sensor when its value first appears.
+    from .const import CONF_HIDE_EMPTY_ENTITIES  # noqa: PLC0415
+    hide_empty = bool(entry.options.get(
+        CONF_HIDE_EMPTY_ENTITIES,
+        entry.data.get(CONF_HIDE_EMPTY_ENTITIES, True),
+    ))
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
@@ -700,6 +709,13 @@ async def async_setup_entry(
             # v1.11.0 (#91) — phantom-entity prevention.
             if (
                 desc.key in _DATA_PRESENT_REQUIRED
+                and vehicle.get(desc.data_key) is None
+            ):
+                continue
+            # b3 — broad hide-empty (None only, so a real False still shows).
+            if (
+                hide_empty
+                and desc.data_key
                 and vehicle.get(desc.data_key) is None
             ):
                 continue

@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b3] - 2026-06-23
+
+> **Beta / pre-release** — declutter: hide entities without data.
+
+### Added
+
+- **Entities without data are now hidden by default, so a vehicle isn't flooded with dozens of "unknown" sensors.** Only sensors and binary sensors that actually have a value are created; an entity still appears automatically the moment its value first arrives (the dynamic spawner now re-evaluates every poll and tracks entities individually). Controls (lock, climate, buttons, …) are never affected. Untick **"Hide entities without data"** in the integration options if you'd rather see everything.
+
 ## [2.15.0b2] - 2026-06-23
 
 > **Beta / pre-release** — hotfix for the b1 multi-channel live test.

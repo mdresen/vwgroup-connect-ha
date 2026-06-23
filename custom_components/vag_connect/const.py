@@ -177,6 +177,14 @@ CONF_SUPPLEMENTARY_AUTHPROXY         = "supplementary_authproxy"
 # the client's _supplementary_authproxy connector at setup.
 CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES = "supplementary_authproxy_cookies"
 
+# v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
+# sensors / binary sensors whose value hasn't arrived are not created, so a
+# device isn't flooded with dozens of "unknown" entities. The per-id dynamic
+# spawner re-evaluates each poll, so an entity still appears the moment its
+# value first arrives. Controls (lock/climate/button/number/switch) are never
+# gated. Set False to show every entity regardless of data.
+CONF_HIDE_EMPTY_ENTITIES = "hide_empty_entities"
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",

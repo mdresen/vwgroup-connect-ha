@@ -48,6 +48,7 @@ from .const import (
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
+    CONF_HIDE_EMPTY_ENTITIES,
     CONF_SUPPLEMENTARY_AUTHPROXY,
     CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
     CONF_WEBSITE_AUTHPROXY,
@@ -1530,6 +1531,16 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(
                             CONF_EU_DATA_ACT_AUTO_KICKOFF, False,
                         ),
+                    ),
+                ): _BOOL_SELECTOR,
+                # b3 — hide entities without data (default on) so the device
+                # isn't flooded with "unknown" sensors; an entity still appears
+                # the moment its value arrives. Off = show every entity.
+                vol.Optional(
+                    CONF_HIDE_EMPTY_ENTITIES,
+                    default=current_options.get(
+                        CONF_HIDE_EMPTY_ENTITIES,
+                        current_data.get(CONF_HIDE_EMPTY_ENTITIES, True),
                     ),
                 ): _BOOL_SELECTOR,
                 # b1/C1 — opt-in: add (or refresh) a supplementary read-only

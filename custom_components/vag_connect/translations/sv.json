@@ -178,7 +178,8 @@
           "client_id_override": "OAuth client_id override (power users)",
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
           "enable_data_act_browser": "EU Data Act-portalen: headless-webbläsar-fallback (EXPERIMENTELL)",
-          "supplementary_authproxy": "Lägg till en Volkswagen.de-läskanal (slå samman data)"
+          "supplementary_authproxy": "Lägg till en Volkswagen.de-läskanal (slå samman data)",
+          "hide_empty_entities": "Dölj entiteter utan data"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
