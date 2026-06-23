@@ -692,6 +692,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     "— skipping fresh login",
                     brand,
                 )
+            # v2.15.0b1 (C1) — arm any supplementary read channel (e.g. vw.de)
+            # AFTER the primary authenticate, so the per-poll merge has it.
+            # No-op when none configured; fail-soft (primary unaffected).
+            await self._arm_supplementary_channels()
             vins = await self._cariad_client.get_vehicles()
             if not vins:
                 return False
@@ -1045,6 +1049,71 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             },
         )
 
+    def _primary_channel_name(self) -> str:
+        """v2.15.0b1 (C1) — label for the primary channel, for merge provenance.
+
+        The primary is the command-capable (or first-configured) channel; it
+        stays highest priority in the merge so read-only supplementary channels
+        only ever fill gaps."""
+        from .const import CONF_WEBSITE_AUTHPROXY  # noqa: PLC0415
+        data = self.entry.data
+        if data.get(CONF_WEBSITE_AUTHPROXY):
+            return "website_authproxy"
+        dag = data.get("dag_initial_tokens") or {}
+        if dag.get("strategy") == "mbb":
+            return "mbb"
+        if getattr(self._cariad_client, "_eu_portal", None) is not None:
+            return "eu_data_act"
+        return str(data.get(CONF_BRAND, "")) or "primary"
+
+    async def _arm_supplementary_channels(self) -> None:
+        """v2.15.0b1 (C1) — arm configured supplementary read channels on the
+        client. No-op when none configured → single-channel setup unchanged;
+        fail-soft so a supplementary channel never blocks setup."""
+        from .const import (  # noqa: PLC0415
+            CONF_SUPPLEMENTARY_AUTHPROXY,
+            CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+        )
+        data = self.entry.data
+        if not data.get(CONF_SUPPLEMENTARY_AUTHPROXY):
+            return
+        arm = getattr(self._cariad_client, "arm_supplementary_authproxy", None)
+        if arm is None:
+            return
+        cookies = data.get(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES) or []
+        try:
+            await arm(cookies)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: supplementary channel arming failed (%s)"
+                " — primary channel unaffected.", type(err).__name__,
+            )
+
+    async def _merge_supplementary(self, vin: str, primary: VehicleData) -> VehicleData:
+        """v2.15.0b1 (C1) — union armed supplementary read-only channels onto
+        the primary snapshot. No-op (returns ``primary`` unchanged) when no
+        supplementary channel is armed, so single-channel polling is untouched.
+        Fail-soft: any merge error keeps the primary — a read-only fallback must
+        never sink the poll, and command routing is never touched."""
+        client = self._cariad_client
+        readers = getattr(client, "supplementary_readers", None)
+        if readers is None:
+            return primary
+        suppliers = readers(vin)
+        if not suppliers:
+            return primary
+        from .cariad._channel_merge import gather_and_merge  # noqa: PLC0415
+        try:
+            return await gather_and_merge(
+                self._primary_channel_name(), primary, suppliers,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "C1 supplementary merge failed for %s — keeping primary: %s",
+                mask_vin(vin), err,
+            )
+            return primary
+
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
 
@@ -1169,6 +1238,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                                 self.vehicle_failure_count.get(vin, 0) + 1
                             )
                             continue
+                        # v2.15.0b1 (C1) — multi-channel merge: union any armed
+                        # supplementary read-only channel (e.g. vw.de authproxy)
+                        # onto the primary snapshot before storing. No-op for
+                        # single-channel entries → returns result unchanged.
+                        result = await self._merge_supplementary(vin, result)
                         # v1.10.1 (#58 Phase 2) — wrap to_dict + _enrich
                         # in their own try/except. A single VehicleData
                         # field with an unexpected type used to crash

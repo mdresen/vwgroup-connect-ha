@@ -48,6 +48,8 @@ from .const import (
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
+    CONF_SUPPLEMENTARY_AUTHPROXY,
+    CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
     CONF_WEBSITE_AUTHPROXY,
     CONF_WEBSITE_COOKIES,
     DEFAULT_SCAN_INTERVAL,
@@ -1345,12 +1347,25 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self._config_entry = config_entry
+        # b1/C1 — state for the optional "add vw.de read channel" sub-flow.
+        self._ovw_session: Any = None
+        self._ovw_connector: Any = None
+        self._ovw_cookies: list[dict[str, Any]] = []
+        self._ovw_username: str = ""
+        self._ovw_pending_options: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Options: scan interval, S-PIN, reverse geocoding opt-in."""
         if user_input is not None:
+            # b1/C1 — if the user ticked "add vw.de read channel", branch into
+            # the login sub-flow; the remaining options are saved when it
+            # completes. Default-False so untouched submits behave exactly as
+            # before (the flag is popped so it's never stored as an option).
+            if user_input.pop(CONF_SUPPLEMENTARY_AUTHPROXY, False):
+                self._ovw_pending_options = dict(user_input)
+                return await self.async_step_add_vwde()
             return self.async_create_entry(title="", data=user_input)
 
         current_data = self._config_entry.data
@@ -1517,5 +1532,167 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         ),
                     ),
                 ): _BOOL_SELECTOR,
+                # b1/C1 — opt-in: add (or refresh) a supplementary read-only
+                # volkswagen.de channel that the coordinator merges onto this
+                # entry's primary data (VIN/odometer/service/master). Ticking it
+                # routes to the vw.de login; default False = no change. Brand-
+                # gated to volkswagen on submit.
+                vol.Optional(
+                    CONF_SUPPLEMENTARY_AUTHPROXY,
+                    default=False,
+                ): _BOOL_SELECTOR,
             }),
         )
+
+    # ── b1/C1: supplementary vw.de read-channel sub-flow ────────────────────
+
+    async def async_step_add_vwde(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Collect vw.de credentials + drive the read-only login. Volkswagen
+        only; on success stores the session cookies as a supplementary channel
+        and reloads so the coordinator merges it onto the primary."""
+        errors: dict[str, str] = {}
+        if self._config_entry.data.get(CONF_BRAND) != "volkswagen":
+            return self.async_abort(reason="not_volkswagen")
+
+        if user_input is not None:
+            self._ovw_username = user_input[CONF_USERNAME]
+            try:
+                needs_otp = await self._ovw_begin_login(
+                    self._ovw_username, user_input[CONF_PASSWORD],
+                )
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                if needs_otp:
+                    return await self.async_step_add_vwde_otp()
+                return await self._ovw_finish()
+
+        return self.async_show_form(
+            step_id="add_vwde",
+            data_schema=vol.Schema({
+                vol.Required(CONF_USERNAME): _USERNAME_SELECTOR,
+                vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_add_vwde_otp(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Email-OTP step for the supplementary vw.de channel login."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                ok = await self._ovw_submit_otp(str(user_input.get("mfa_code", "")).strip())
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                if ok:
+                    return await self._ovw_finish()
+                errors["base"] = "invalid_credentials"
+
+        return self.async_show_form(
+            step_id="add_vwde_otp",
+            data_schema=vol.Schema({vol.Required("mfa_code"): _MFA_SELECTOR}),
+            description_placeholders={"username": self._ovw_username},
+            errors=errors,
+        )
+
+    async def _ovw_finish(self) -> config_entries.ConfigFlowResult:
+        """Persist the supplementary cookies onto the entry + reload so the
+        coordinator arms the merged channel. Saves any pending options too."""
+        self.hass.config_entries.async_update_entry(
+            self._config_entry,
+            data={
+                **self._config_entry.data,
+                CONF_SUPPLEMENTARY_AUTHPROXY: True,
+                CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES: self._ovw_cookies,
+            },
+        )
+        # The update listener only reloads on credential changes; the
+        # supplementary config lives in entry.data, so reload explicitly
+        # (after this flow returns) to arm the merged channel.
+        self.hass.async_create_task(
+            self.hass.config_entries.async_reload(self._config_entry.entry_id)
+        )
+        return self.async_create_entry(title="", data=self._ovw_pending_options)
+
+    async def _ovw_begin_login(self, username: str, password: str) -> bool:
+        """Drive the vw.de authproxy login; True if an OTP step is needed.
+        Mirrors the config-flow's _wap_begin_login (kept self-contained so the
+        OptionsFlow owns its own throwaway session + connector)."""
+        import aiohttp  # noqa: PLC0415
+
+        from .cariad.auth._website_authproxy import (  # noqa: PLC0415
+            WebsiteAuthProxyConnector,
+        )
+        from .cariad.exceptions import (  # noqa: PLC0415
+            AuthenticationError,
+            EmailTwoFactorRequiredError,
+        )
+
+        await self._ovw_close_session()
+        self._ovw_session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=True),
+            cookie_jar=aiohttp.CookieJar(unsafe=True),
+        )
+        self._ovw_connector = WebsiteAuthProxyConnector(
+            self._ovw_session, username, password, brand="volkswagen",
+        )
+        try:
+            result = await self._ovw_connector.begin_login()
+        except EmailTwoFactorRequiredError:
+            return True
+        except AuthenticationError as err:
+            await self._ovw_close_session()
+            raise ValueError("invalid_credentials") from err
+        except Exception as err:  # noqa: BLE001
+            await self._ovw_close_session()
+            raise ValueError("cannot_connect") from err
+        if result == "otp_required":
+            return True
+        self._ovw_cookies = self._ovw_capture_cookies()
+        await self._ovw_close_session()
+        return False
+
+    async def _ovw_submit_otp(self, code: str) -> bool:
+        """Submit the OTP for the supplementary vw.de login."""
+        from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+
+        if self._ovw_connector is None:
+            raise ValueError("cannot_connect")
+        try:
+            ok = bool(await self._ovw_connector.submit_otp(code))
+            if ok:
+                self._ovw_cookies = self._ovw_capture_cookies()
+        except AuthenticationError as err:
+            raise ValueError("invalid_credentials") from err
+        except Exception as err:  # noqa: BLE001
+            raise ValueError("cannot_connect") from err
+        finally:
+            await self._ovw_close_session()
+        return ok
+
+    def _ovw_capture_cookies(self) -> list[dict[str, Any]]:
+        """Export the connector's session cookies (never raises → empty list)."""
+        connector = self._ovw_connector
+        if connector is None:
+            return []
+        try:
+            cookies = connector.export_cookies()
+        except Exception:  # noqa: BLE001
+            return []
+        return cookies if isinstance(cookies, list) else []
+
+    async def _ovw_close_session(self) -> None:
+        """Close the throwaway login session + drop the connector."""
+        sess = self._ovw_session
+        self._ovw_session = None
+        self._ovw_connector = None
+        if sess is not None:
+            try:
+                await sess.close()
+            except Exception:  # noqa: BLE001
+                pass

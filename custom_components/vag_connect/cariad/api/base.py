@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable
 from contextlib import contextmanager
 from typing import Any, Callable, Iterator
 
@@ -136,6 +137,12 @@ class CariadBaseClient:
         # wired. Default False → every existing strategy path is untouched.
         self._use_website_proxy: bool = False
         self._website_proxy: Any = None
+        # v2.15.0b1 (C1) — a SUPPLEMENTARY read-only connector armed ALONGSIDE
+        # the primary channel (not via the dispatch above). get_status never
+        # looks at it; only the coordinator's multi-channel merge reads it, so
+        # the primary read + command routing are completely unaffected. None =
+        # the default single-channel behaviour.
+        self._supplementary_authproxy: Any = None
         # When the website-authproxy login surfaces an email-OTP challenge,
         # the code the user enters in the config flow is handed to the
         # connector via this field before authenticate() runs.
@@ -476,6 +483,86 @@ class CariadBaseClient:
             expires_at=_time.time() + 3300,
             strategy="data_act_portal",
         )
+
+    def supplementary_readers(
+        self, vin: str
+    ) -> list[tuple[str, Awaitable[VehicleData | None]]]:
+        """v2.15.0b1 (C1) — read coroutines for every armed SUPPLEMENTARY
+        read-only channel, for the coordinator's multi-channel merge.
+
+        Returns ``[(channel_name, awaitable→VehicleData|None), …]``. Empty when
+        no supplementary channel is armed (the default) — so the coordinator's
+        merge is a no-op and single-channel polling is byte-for-byte unchanged.
+        Isolated from ``get_status``: never affects the primary read or commands.
+        """
+        readers: list[tuple[str, Awaitable[VehicleData | None]]] = []
+        web = getattr(self, "_supplementary_authproxy", None)
+        if web is not None:
+            readers.append(("website_authproxy", self._read_authproxy(web, vin)))
+        return readers
+
+    async def _read_authproxy(
+        self, connector: Any, vin: str
+    ) -> VehicleData | None:
+        """Read one VIN from a website-authproxy connector with a single
+        re-login retry. Fail-soft: any error returns None so a read-only
+        supplementary channel can never sink the poll (the primary stands)."""
+        try:
+            return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+        except AuthenticationError:
+            try:
+                await connector.refresh()
+                return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+            except Exception:  # noqa: BLE001
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def arm_supplementary_authproxy(
+        self, cookies: list[dict[str, Any]] | None
+    ) -> bool:
+        """v2.15.0b1 (C1) — arm the SUPPLEMENTARY vw.de read connector from
+        persisted session cookies, ALONGSIDE the primary channel.
+
+        Unlike ``set_website_authproxy_mode`` (which makes vw.de the SOLE
+        channel via the get_status dispatch), this only fills the
+        ``_supplementary_authproxy`` slot that the coordinator merges from — so
+        get_status, the primary read and command routing are never affected.
+        Fail-soft: no/stale cookies or any error leaves the slot None and the
+        primary channel runs unchanged (a fresh OTP login is the OptionsFlow's
+        job, never a mid-setup prompt). Returns True if the channel is live.
+        """
+        if not cookies:
+            return False
+        from ..auth._website_authproxy import (  # noqa: PLC0415
+            WebsiteAuthProxyConnector,
+        )
+        try:
+            connector = WebsiteAuthProxyConnector(
+                self._session, self._email, self._password,
+                brand=self._brand.name,
+            )
+            connector.import_cookies(cookies)
+            if not await connector.session_alive():
+                _LOGGER.warning(
+                    "VAG Connect: supplementary vw.de channel cookies are stale"
+                    " — re-add the channel from the integration options to"
+                    " refresh it; the primary channel is unaffected."
+                )
+                return False
+            self._supplementary_authproxy = connector
+            _LOGGER.info(
+                "VAG Connect: supplementary vw.de read channel armed"
+                " (read-only, merged onto the primary)."
+            )
+            return True
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: could not arm supplementary vw.de channel (%s)"
+                " — primary channel unaffected.", type(err).__name__,
+            )
+            self._supplementary_authproxy = None
+            return False
 
     def set_website_authproxy_mode(
         self,

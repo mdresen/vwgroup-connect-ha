@@ -164,6 +164,19 @@ CONF_WEBSITE_AUTHPROXY        = "website_authproxy"
 # produced by ``WebsiteAuthProxyConnector.export_cookies``.
 CONF_WEBSITE_COOKIES          = "website_cookies"
 
+# v2.15.0b1 (C1) — SUPPLEMENTARY vw.de read channel armed ALONGSIDE a primary
+# channel (e.g. an EU-Data-Act-portal entry that also pulls VIN/odometer/service
+# from volkswagen.de and merges them). Distinct from CONF_WEBSITE_AUTHPROXY,
+# which makes vw.de the SOLE/primary channel: this flag adds vw.de as an extra
+# read-only source that the coordinator unions onto the primary snapshot via
+# merge_channels. Absent / False = single-channel behaviour, unchanged.
+CONF_SUPPLEMENTARY_AUTHPROXY         = "supplementary_authproxy"
+# Persisted vw.de session cookies for the supplementary channel (same shape +
+# lifecycle as CONF_WEBSITE_COOKIES, but for the supplementary slot). Written by
+# the OptionsFlow "add vw.de read channel" step; read by the coordinator to arm
+# the client's _supplementary_authproxy connector at setup.
+CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES = "supplementary_authproxy_cookies"
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",
