@@ -179,7 +179,8 @@
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
           "enable_data_act_browser": "Portál EU Data Act: záloha přes headless prohlížeč (EXPERIMENTÁLNÍ)",
           "supplementary_authproxy": "Přidat čtecí kanál Volkswagen.de (sloučit data)",
-          "hide_empty_entities": "Skrýt entity bez dat"
+          "hide_empty_entities": "Skrýt entity bez dat",
+          "supplementary_eu_portal": "Přidat čtecí kanál portálu EU Data Act"
         },
         "data_description": {
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",
@@ -219,6 +220,14 @@
         },
         "data_description": {
           "mfa_code": "Code from your email inbox — valid for a few minutes."
+        }
+      },
+      "add_portal": {
+        "title": "Portál EU Data Act — čtecí kanál",
+        "description": "Přihlas se k portálu EU Data Act (e-mail + heslo) pro přidání SoC, nabíjení, kilometrů a servisu, sloučených s hlavním kanálem.",
+        "data": {
+          "username": "E-mail",
+          "password": "Heslo"
         }
       }
     }

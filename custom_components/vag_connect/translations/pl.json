@@ -179,7 +179,8 @@
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
           "enable_data_act_browser": "Portal EU Data Act: rezerwowy tryb przeglądarki headless (EKSPERYMENTALNE)",
           "supplementary_authproxy": "Dodaj kanał odczytu Volkswagen.de (scal dane)",
-          "hide_empty_entities": "Ukryj encje bez danych"
+          "hide_empty_entities": "Ukryj encje bez danych",
+          "supplementary_eu_portal": "Dodaj kanał odczytu portalu EU Data Act"
         },
         "data_description": {
           "scan_interval": "Jak często pobierane są dane (minuty). Minimum: 3.",
@@ -219,6 +220,14 @@
         },
         "data_description": {
           "mfa_code": "Code from your email inbox — valid for a few minutes."
+        }
+      },
+      "add_portal": {
+        "title": "Portal EU Data Act — kanał odczytu",
+        "description": "Zaloguj się do portalu EU Data Act (e-mail + hasło), aby dodać SoC, ładowanie, przebieg i serwis, scalone z kanałem głównym.",
+        "data": {
+          "username": "E-mail",
+          "password": "Hasło"
         }
       }
     }

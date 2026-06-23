@@ -51,6 +51,9 @@ from .const import (
     CONF_HIDE_EMPTY_ENTITIES,
     CONF_SUPPLEMENTARY_AUTHPROXY,
     CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+    CONF_SUPPLEMENTARY_EU_PORTAL,
+    CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
+    CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
     CONF_WEBSITE_AUTHPROXY,
     CONF_WEBSITE_COOKIES,
     DEFAULT_SCAN_INTERVAL,
@@ -1354,6 +1357,8 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         self._ovw_cookies: list[dict[str, Any]] = []
         self._ovw_username: str = ""
         self._ovw_pending_options: dict[str, Any] = {}
+        # b8/C1 — state for the "add EU Data Act portal read channel" sub-flow.
+        self._oportal_pending_options: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -1367,6 +1372,11 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             if user_input.pop(CONF_SUPPLEMENTARY_AUTHPROXY, False):
                 self._ovw_pending_options = dict(user_input)
                 return await self.async_step_add_vwde()
+            # b8/C1 — add the EU Data Act portal as a supplementary read channel
+            # (email/pw, no OTP) to fill the reads a command primary (MBB) lacks.
+            if user_input.pop(CONF_SUPPLEMENTARY_EU_PORTAL, False):
+                self._oportal_pending_options = dict(user_input)
+                return await self.async_step_add_portal()
             return self.async_create_entry(title="", data=user_input)
 
         current_data = self._config_entry.data
@@ -1552,8 +1562,86 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     CONF_SUPPLEMENTARY_AUTHPROXY,
                     default=False,
                 ): _BOOL_SELECTOR,
+                # b8/C1 — opt-in: add the EU Data Act portal as a supplementary
+                # read channel (email/pw, no OTP) to fill the reads a command
+                # primary (MBB) can't. Default False = no change.
+                vol.Optional(
+                    CONF_SUPPLEMENTARY_EU_PORTAL,
+                    default=False,
+                ): _BOOL_SELECTOR,
             }),
         )
+
+    # ── b8/C1: supplementary EU Data Act portal read-channel sub-flow ───────
+
+    async def async_step_add_portal(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Collect EU Data Act portal credentials (email/pw, no OTP), validate
+        with a test login, and store them as a supplementary read channel that
+        the coordinator merges onto the primary (e.g. MBB) — filling SoC /
+        charging / odometer / service that the primary can't read."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            email = user_input[CONF_USERNAME]
+            password = user_input[CONF_PASSWORD]
+            try:
+                await self._oportal_test_login(email, password)
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={
+                        **self._config_entry.data,
+                        CONF_SUPPLEMENTARY_EU_PORTAL: True,
+                        CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME: email,
+                        CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD: password,
+                    },
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+                return self.async_create_entry(
+                    title="", data=self._oportal_pending_options
+                )
+
+        return self.async_show_form(
+            step_id="add_portal",
+            data_schema=vol.Schema({
+                vol.Required(CONF_USERNAME): _USERNAME_SELECTOR,
+                vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
+            }),
+            errors=errors,
+        )
+
+    async def _oportal_test_login(self, email: str, password: str) -> None:
+        """Validate the portal credentials with a throwaway login. Raises
+        ValueError(code) on failure so _map_error renders a localised message."""
+        import aiohttp  # noqa: PLC0415
+
+        from .cariad.auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
+        from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+
+        brand = str(self._config_entry.data.get(CONF_BRAND, "")) or "volkswagen"
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=True),
+            cookie_jar=aiohttp.CookieJar(unsafe=True),
+        )
+        try:
+            connector = EUDataActConnector(session, brand=brand)
+            await connector.login(email, password)
+        except AuthenticationError as err:
+            raise ValueError("invalid_credentials") from err
+        except Exception as err:  # noqa: BLE001
+            raise ValueError("cannot_connect") from err
+        finally:
+            try:
+                await session.close()
+            except Exception:  # noqa: BLE001
+                pass
 
     # ── b1/C1: supplementary vw.de read-channel sub-flow ────────────────────
 

@@ -181,7 +181,8 @@
           "client_id_override": "OAuth client_id Override (Power-User)",
           "eu_data_act_auto_kickoff": "EU Data Act: Custom Data Request automatisch anlegen",
           "supplementary_authproxy": "Volkswagen.de-Lesekanal hinzufügen (Daten zusammenführen)",
-          "hide_empty_entities": "Entitäten ohne Daten ausblenden"
+          "hide_empty_entities": "Entitäten ohne Daten ausblenden",
+          "supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal hinzufügen"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -221,6 +222,14 @@
         },
         "data_description": {
           "mfa_code": "Code aus deinem E-Mail-Posteingang — einige Minuten gültig."
+        }
+      },
+      "add_portal": {
+        "title": "EU-Data-Act-Portal — Lesekanal",
+        "description": "Beim EU-Data-Act-Portal anmelden (E-Mail + Passwort), um SoC, Laden, Kilometerstand und Service als Reads hinzuzufügen — gemergt auf deinen Primär-Kanal.",
+        "data": {
+          "username": "E-Mail",
+          "password": "Passwort"
         }
       }
     }

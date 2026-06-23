@@ -179,7 +179,8 @@
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
           "enable_data_act_browser": "EU Data Act-portaal: headless-browser-fallback (EXPERIMENTEEL)",
           "supplementary_authproxy": "Volkswagen.de-leeskanaal toevoegen (gegevens samenvoegen)",
-          "hide_empty_entities": "Entiteiten zonder gegevens verbergen"
+          "hide_empty_entities": "Entiteiten zonder gegevens verbergen",
+          "supplementary_eu_portal": "EU Data Act-portaal-leeskanaal toevoegen"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -219,6 +220,14 @@
         },
         "data_description": {
           "mfa_code": "Code from your email inbox — valid for a few minutes."
+        }
+      },
+      "add_portal": {
+        "title": "EU Data Act-portaal — leeskanaal",
+        "description": "Meld je aan bij het EU Data Act-portaal (e-mail + wachtwoord) om SoC, laden, kilometerstand en onderhoud toe te voegen, samengevoegd met je hoofdkanaal.",
+        "data": {
+          "username": "E-mail",
+          "password": "Wachtwoord"
         }
       }
     }

@@ -171,6 +171,12 @@ CONF_WEBSITE_COOKIES          = "website_cookies"
 # read-only source that the coordinator unions onto the primary snapshot via
 # merge_channels. Absent / False = single-channel behaviour, unchanged.
 CONF_SUPPLEMENTARY_AUTHPROXY         = "supplementary_authproxy"
+# v2.15.0b8 (C1) — supplementary EU Data Act PORTAL read channel (email/pw,
+# no OTP) merged onto a command-capable primary like MBB to fill the reads MBB
+# can't. Creds stored separately from the primary's (an MBB-QR entry has none).
+CONF_SUPPLEMENTARY_EU_PORTAL          = "supplementary_eu_portal"
+CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME = "supplementary_eu_portal_username"
+CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD = "supplementary_eu_portal_password"
 # Persisted vw.de session cookies for the supplementary channel (same shape +
 # lifecycle as CONF_WEBSITE_COOKIES, but for the supplementary slot). Written by
 # the OptionsFlow "add vw.de read channel" step; read by the coordinator to arm

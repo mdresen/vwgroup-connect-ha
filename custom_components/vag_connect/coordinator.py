@@ -1081,35 +1081,49 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .const import (  # noqa: PLC0415
             CONF_SUPPLEMENTARY_AUTHPROXY,
             CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+            CONF_SUPPLEMENTARY_EU_PORTAL,
+            CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
+            CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
         )
         data = self.entry.data
-        if not data.get(CONF_SUPPLEMENTARY_AUTHPROXY):
-            return
-        arm = getattr(self._cariad_client, "arm_supplementary_authproxy", None)
-        if arm is None:
-            return
-        cookies = data.get(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES) or []
-        armed = False
-        try:
-            armed = bool(await arm(cookies))
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning(
-                "VAG Connect: supplementary channel arming failed (%s)"
-                " — primary channel unaffected.", type(err).__name__,
+        client = self._cariad_client
+
+        # ── vw.de supplementary (cookie-based, OTP-bound) ───────────────────
+        arm_web = getattr(client, "arm_supplementary_authproxy", None)
+        if data.get(CONF_SUPPLEMENTARY_AUTHPROXY) and arm_web is not None:
+            cookies = data.get(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES) or []
+            armed = False
+            try:
+                armed = bool(await arm_web(cookies))
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VAG Connect: supplementary vw.de arming failed (%s)"
+                    " — primary channel unaffected.", type(err).__name__,
+                )
+            # v2.15.0b5 — graceful "re-login" Repair when the OTP-bound vw.de
+            # session can't resume; cleared once it arms again.
+            from .repairs import (  # noqa: PLC0415
+                clear_supplementary_reauth_issue,
+                raise_issue_supplementary_reauth,
             )
-        # v2.15.0b5 (C1) — when the vw.de session is OTP-dead, surface a
-        # graceful "re-login" Repair issue (the channel can't silently resume);
-        # clear it once the channel arms again.
-        from .repairs import (  # noqa: PLC0415
-            clear_supplementary_reauth_issue,
-            raise_issue_supplementary_reauth,
-        )
-        if not armed and getattr(
-            self._cariad_client, "_supplementary_needs_reauth", False
-        ):
-            raise_issue_supplementary_reauth(self.hass, self.entry.entry_id)
-        else:
-            clear_supplementary_reauth_issue(self.hass, self.entry.entry_id)
+            if not armed and getattr(client, "_supplementary_needs_reauth", False):
+                raise_issue_supplementary_reauth(self.hass, self.entry.entry_id)
+            else:
+                clear_supplementary_reauth_issue(self.hass, self.entry.entry_id)
+
+        # ── EU Data Act portal supplementary (email/pw, reliable) ───────────
+        arm_portal = getattr(client, "arm_supplementary_eu_portal", None)
+        if data.get(CONF_SUPPLEMENTARY_EU_PORTAL) and arm_portal is not None:
+            try:
+                await arm_portal(
+                    data.get(CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME),
+                    data.get(CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD),
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VAG Connect: supplementary portal arming failed (%s)"
+                    " — primary channel unaffected.", type(err).__name__,
+                )
 
     async def _merge_supplementary(self, vin: str, primary: VehicleData) -> VehicleData:
         """v2.15.0b1 (C1) — union armed supplementary read-only channels onto

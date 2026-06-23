@@ -153,6 +153,13 @@ class CariadBaseClient:
         # silently resume (login=otp_required) so the coordinator raises a
         # "re-login" Repair issue. Stays False for transient/other failures.
         self._supplementary_needs_reauth: bool = False
+        # v2.15.0b8 (C1) — supplementary EU Data Act PORTAL read channel armed
+        # alongside a command-capable primary (e.g. MBB): it fills the reads MBB
+        # can't (SoC/charging/odometer/service). email/pw login → auto-relogin,
+        # no OTP, reliable unattended. Safe on the shared client session because
+        # a non-portal primary (MBB = bearer) holds no IDP cookies to clobber.
+        self._supplementary_eu_portal: Any = None
+        self._supplementary_eu_portal_creds: Any = None
         # When the website-authproxy login surfaces an email-OTP challenge,
         # the code the user enters in the config flow is handed to the
         # connector via this field before authenticate() runs.
@@ -509,6 +516,9 @@ class CariadBaseClient:
         web = getattr(self, "_supplementary_authproxy", None)
         if web is not None:
             readers.append(("website_authproxy", self._read_authproxy(web, vin)))
+        portal = getattr(self, "_supplementary_eu_portal", None)
+        if portal is not None:
+            readers.append(("eu_data_act", self._read_eu_portal(portal, vin)))
         return readers
 
     async def _read_authproxy(
@@ -522,6 +532,26 @@ class CariadBaseClient:
         except AuthenticationError:
             try:
                 await connector.refresh()
+                return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+            except Exception:  # noqa: BLE001
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def _read_eu_portal(
+        self, connector: Any, vin: str
+    ) -> VehicleData | None:
+        """Read one VIN from the supplementary EU Data Act portal connector,
+        re-logging in (email/pw, no OTP) on a stale session. Fail-soft → None,
+        so a read-only fallback can never sink the poll (the primary stands)."""
+        try:
+            return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+        except AuthenticationError:
+            creds = getattr(self, "_supplementary_eu_portal_creds", None)
+            if not creds:
+                return None
+            try:
+                await connector.login(creds[0], creds[1])
                 return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
             except Exception:  # noqa: BLE001
                 return None
@@ -595,12 +625,47 @@ class CariadBaseClient:
             await session.close()
             return False
 
+    async def arm_supplementary_eu_portal(
+        self, email: str | None, password: str | None
+    ) -> bool:
+        """v2.15.0b8 (C1) — arm the supplementary EU Data Act portal read
+        channel (email/pw login, no OTP → reliable auto-relogin). Skipped when
+        the portal is ALREADY the primary channel (would self-collide on the
+        shared session). Fail-soft: any error leaves the slot None and the
+        primary channel runs unchanged. Returns True if armed."""
+        if not email:
+            return False
+        if getattr(self, "_eu_portal", None) is not None:
+            # portal is already the primary — nothing to supplement
+            return False
+        from ..auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
+        try:
+            connector = EUDataActConnector(self._session, brand=self._brand.name)
+            await connector.login(email, password or "")
+            self._supplementary_eu_portal = connector
+            self._supplementary_eu_portal_creds = (email, password or "")
+            _LOGGER.info(
+                "VAG Connect: supplementary EU Data Act portal read channel"
+                " armed (read-only, merged onto the primary)."
+            )
+            return True
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: could not arm supplementary EU Data Act portal"
+                " (%s) — primary channel unaffected.", type(err).__name__,
+            )
+            self._supplementary_eu_portal = None
+            return False
+
     async def close_supplementary(self) -> None:
         """Close the dedicated supplementary session (on unload / re-arm).
         Idempotent + fail-soft."""
         sess = getattr(self, "_supplementary_session", None)
         self._supplementary_session = None
         self._supplementary_authproxy = None
+        # the portal supplementary shares the client session (no own session to
+        # close) — just drop the connector reference.
+        self._supplementary_eu_portal = None
         if sess is not None:
             try:
                 await sess.close()

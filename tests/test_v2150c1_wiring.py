@@ -126,6 +126,62 @@ class TestArmSupplementary:
         assert "eu_data_act.baz" in findings
         assert findings["eu_data_act.foo_bar"].endpoint == "eu_data_act"
 
+    def test_portal_readers_include_portal(self) -> None:
+        c = _client()
+        conn = MagicMock()
+        conn.get_vehicle_data = AsyncMock(return_value=VehicleData(vin="X", battery_soc=80))
+        c._supplementary_eu_portal = conn
+        readers = c.supplementary_readers("X")
+        names = [r[0] for r in readers]
+        assert "eu_data_act" in names
+        for _name, coro in readers:  # consume coroutines (no un-awaited warning)
+            asyncio.run(coro)
+
+    def test_arm_portal_success_stores_creds(self) -> None:
+        c = _client()
+        conn = MagicMock()
+        conn.login = AsyncMock()
+        with patch(
+            "custom_components.vag_connect.cariad.auth._eu_data_act.EUDataActConnector",
+            return_value=conn,
+        ):
+            ok = asyncio.run(c.arm_supplementary_eu_portal("u@t.de", "pw"))
+        assert ok is True
+        assert c._supplementary_eu_portal is conn
+        assert c._supplementary_eu_portal_creds == ("u@t.de", "pw")
+
+    def test_arm_portal_skipped_when_portal_is_primary(self) -> None:
+        c = _client()
+        c._eu_portal = object()  # portal already the primary → don't self-collide
+        ok = asyncio.run(c.arm_supplementary_eu_portal("u@t.de", "pw"))
+        assert ok is False
+        assert c._supplementary_eu_portal is None
+
+    def test_arm_portal_login_failure_is_failsoft(self) -> None:
+        c = _client()
+        conn = MagicMock()
+        conn.login = AsyncMock(side_effect=RuntimeError("boom"))
+        with patch(
+            "custom_components.vag_connect.cariad.auth._eu_data_act.EUDataActConnector",
+            return_value=conn,
+        ):
+            ok = asyncio.run(c.arm_supplementary_eu_portal("u@t.de", "pw"))
+        assert ok is False
+        assert c._supplementary_eu_portal is None
+
+    def test_read_portal_relogins_on_auth_error(self) -> None:
+        from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+        c = _client()
+        c._supplementary_eu_portal_creds = ("u@t.de", "pw")
+        conn = MagicMock()
+        conn.get_vehicle_data = AsyncMock(
+            side_effect=[AuthenticationError("stale"), VehicleData(vin="X", battery_soc=55)]
+        )
+        conn.login = AsyncMock()
+        res = asyncio.run(c._read_eu_portal(conn, "X"))
+        assert res is not None and res.battery_soc == 55
+        conn.login.assert_awaited_once()
+
     def test_close_supplementary(self) -> None:
         c = _client()
         sess = MagicMock()

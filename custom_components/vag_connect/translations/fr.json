@@ -179,7 +179,8 @@
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
           "enable_data_act_browser": "Portail EU Data Act : repli navigateur headless (EXPÉRIMENTAL)",
           "supplementary_authproxy": "Ajouter un canal de lecture Volkswagen.de (fusionner les données)",
-          "hide_empty_entities": "Masquer les entités sans données"
+          "hide_empty_entities": "Masquer les entités sans données",
+          "supplementary_eu_portal": "Ajouter un canal de lecture du portail EU Data Act"
         },
         "data_description": {
           "scan_interval": "Fréquence de mise à jour (minutes). Minimum: 3.",
@@ -219,6 +220,14 @@
         },
         "data_description": {
           "mfa_code": "Code from your email inbox — valid for a few minutes."
+        }
+      },
+      "add_portal": {
+        "title": "Portail EU Data Act — canal de lecture",
+        "description": "Connectez-vous au portail EU Data Act (e-mail + mot de passe) pour ajouter SoC, charge, kilométrage et entretien, fusionnés sur votre canal principal.",
+        "data": {
+          "username": "E-mail",
+          "password": "Mot de passe"
         }
       }
     }

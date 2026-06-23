@@ -179,7 +179,8 @@
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
           "enable_data_act_browser": "EU Data Act-portalen: headless-webbläsar-fallback (EXPERIMENTELL)",
           "supplementary_authproxy": "Lägg till en Volkswagen.de-läskanal (slå samman data)",
-          "hide_empty_entities": "Dölj entiteter utan data"
+          "hide_empty_entities": "Dölj entiteter utan data",
+          "supplementary_eu_portal": "Lägg till en EU Data Act-portalläskanal"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -219,6 +220,14 @@
         },
         "data_description": {
           "mfa_code": "Code from your email inbox — valid for a few minutes."
+        }
+      },
+      "add_portal": {
+        "title": "EU Data Act-portal — läskanal",
+        "description": "Logga in på EU Data Act-portalen (e-post + lösenord) för att lägga till SoC, laddning, mätarställning och service, sammanslaget med din primära kanal.",
+        "data": {
+          "username": "E-post",
+          "password": "Lösenord"
         }
       }
     }

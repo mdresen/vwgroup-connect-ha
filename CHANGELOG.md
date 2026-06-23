@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b8] - 2026-06-23
+
+> **Beta / pre-release** — the real two-way + reads combo: EU Data Act portal as a supplementary read channel.
+
+### Added
+
+- **Add the EU Data Act portal as a read channel on top of a command-capable entry (e.g. durable MBB).** MBB gives you remote commands and fuel but can't read SoC / charging / odometer / service; the portal can. Tick "Add an EU Data Act portal read channel" in the options, sign in with email + password (no one-time code), and the portal's reads are merged onto your primary channel — so you get commands *and* full data on one device. Read-only, email/pw with automatic re-login (reliable, unlike the OTP-bound vw.de channel), and it never touches command routing. The merged "Data source channel" sensor shows both channels contributing.
+
 ## [2.15.0b7] - 2026-06-23
 
 > **Beta / pre-release** — event-loop hygiene.
