@@ -462,6 +462,18 @@ def _to_int(raw: str | None) -> int | None:
     return int(f) if f is not None else None
 
 
+def _is_miles(unit_raw: str | None) -> bool:
+    """True if a portal distance-unit companion field denotes miles.
+
+    The portal ships either a string (``MILES``/``MILE``/``MI``/``KM``…) or a
+    numeric enum (``0`` = km, ``1`` = miles) — the numeric ``1`` case is a known
+    miles-vs-km pitfall confirmed against real UK/US portal payloads.
+    """
+    if unit_raw is None:
+        return False
+    return str(unit_raw).strip().lower() in ("miles", "mile", "mi", "1")
+
+
 def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -552,6 +564,71 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if plug is not None:
         d.plug_state = plug
         d.plug_connected = str(plug).lower() in ("connected", "plugged", "true", "1")
+
+    # b1/A1 — flat MQB / PHEV schema fields (Golf GTE, Passat GTE, e-Golf, Taigo,
+    # Polo…). `_walk_fields` already emits both flat + dotted; these add the flat
+    # names to the curated map so legacy/PHEV cars get real telemetry over the EU
+    # Data Act portal instead of empty entities. Only unambiguous explicit-field
+    # mappings here — primary/electric range stays for the EV-type detection
+    # (B3) to avoid mislabelling a PHEV's ICE range as electric.
+    fuel = _to_int(first("fuel_level_current_level", "fuelLevel_pct", "fuel_level"))
+    if fuel is not None:
+        d.fuel_level = fuel
+
+    v12 = _to_float(first("boardnetBatteryVoltageIndication", "boardnet_battery_voltage"))
+    if v12 is not None:
+        d.voltage_12v = v12
+
+    oil = _to_int(first("oil_level_actual_level", "oilLevel_pct", "oil_level_pct"))
+    if oil is not None:
+        d.oil_level_pct = oil
+
+    otemp = _to_float(first("outsideTemperatureIndication", "outside_temperature",
+                            "outside_temp"))
+    if otemp is not None:
+        # flat MQB ships outside temp in deci-Kelvin (e.g. 2981 = 24.95 °C); an
+        # already-°C value (e.g. 17.1) stays as-is — no ambient temp is > 200 °C.
+        d.outside_temp = round(otemp / 10 - 273.15, 1) if otemp > 200 else otemp
+
+    sec_rng = _to_int(first("cruising_range_secondary_engine"))
+    if sec_rng is not None:
+        d.secondary_engine_range_km = sec_rng
+
+    comb_rng = _to_int(first("cruising_range_combined", "totalRange_km"))
+    if comb_rng is not None:
+        d.total_range_km = comb_rng
+
+    insp = _to_int(first("inspectionDistance", "inspection_distance"))
+    if insp is not None and d.service_km is None:
+        d.service_km = insp
+
+    # b1/A2 — distance-unit conversion. UK/US cars report distances in miles
+    # plus a companion unit field; our sensors are km-typed, so convert once
+    # here (km cars hit the no-op branch). Post-process so the individual field
+    # mappings above stay untouched.
+    if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")):
+        for _attr in ("odometer_km", "range_km", "electric_range_km",
+                      "combustion_range_km", "secondary_engine_range_km",
+                      "total_range_km", "service_km", "oil_service_km"):
+            _val = getattr(d, _attr)
+            if _val is not None:
+                setattr(d, _attr, round(_val * 1.60934))
+
+    # b1/B3 — derive drivetrain from the data actually present (fixes the
+    # #37 class: an EV like the e-up! showing only combustion entities, or a
+    # PHEV like the Golf GTE flagged as neither). Additive: only set flags True
+    # on a clear signal; never force False, so other channels can still inform it.
+    has_e = (d.battery_soc is not None or d.electric_range_km is not None
+             or d.charging_state is not None)
+    has_c = d.fuel_level is not None or d.combustion_range_km is not None
+    if has_e:
+        d.has_battery = True
+    if has_c:
+        d.has_combustion = True
+    if has_e and has_c:
+        d.is_hybrid = True
+    elif has_e:
+        d.is_electric = True
 
     # a12 — surface the long tail: portal fields we did NOT consume this poll.
     # Debug-only, zero behaviour change. Feeds the Vehicle Data Scout and tells
