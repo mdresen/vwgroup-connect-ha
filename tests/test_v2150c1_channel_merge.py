@@ -114,6 +114,25 @@ class TestChannelMerge:
         with pytest.raises(ValueError):
             merge_channels([])
 
+    def test_supplementary_mutable_not_aliased(self) -> None:
+        # adversarial-review fix: a gap-filled dict/list must be a copy, not a
+        # shared reference to the source snapshot.
+        a = VehicleData(vin="X")
+        b = VehicleData(vin="X", raw_unmapped_fields={"k": "v"})
+        merged = merge_channels([("mbb", a), ("eu_data_act", b)])
+        assert merged.raw_unmapped_fields == {"k": "v"}
+        b.raw_unmapped_fields["k"] = "CORRUPTED"        # mutate source after merge
+        assert merged.raw_unmapped_fields == {"k": "v"}  # merged unaffected
+        merged.raw_unmapped_fields["new"] = "1"          # mutate merged
+        assert "new" not in b.raw_unmapped_fields        # source unaffected
+
+    def test_base_mutable_not_aliased(self) -> None:
+        a = VehicleData(vin="X", raw_unmapped_fields={"a": "1"})
+        b = VehicleData(vin="X", battery_soc=80)
+        merged = merge_channels([("mbb", a), ("eu_data_act", b)])
+        a.raw_unmapped_fields["a"] = "CORRUPTED"          # mutate base after merge
+        assert merged.raw_unmapped_fields == {"a": "1"}   # base was deep-copied
+
 
 class TestGatherAndMerge:
     """C1 async orchestrator: read suppliers concurrently, merge, tolerate

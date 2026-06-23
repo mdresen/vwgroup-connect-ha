@@ -32,7 +32,7 @@ import asyncio
 import copy
 import logging
 from collections.abc import Awaitable
-from dataclasses import fields, replace
+from dataclasses import fields
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -92,7 +92,11 @@ def merge_channels(
             if _unset(f.name, getattr(merged, f.name)):
                 new = getattr(vd, f.name)
                 if not _unset(f.name, new):
-                    setattr(merged, f.name, new)
+                    # deepcopy so a mutable value (dict/list, e.g.
+                    # raw_unmapped_fields / available_charge_modes) is NOT
+                    # shared with the source snapshot — otherwise a later
+                    # mutation of either object would corrupt the other.
+                    setattr(merged, f.name, copy.deepcopy(new))
                     contributors.add(name)
 
     _merge_drivetrain(merged, sources)
@@ -105,7 +109,10 @@ def merge_channels(
     elif contributors:
         merged.source_channel = next(iter(contributors))
 
-    return replace(merged)  # normalise (defensive copy)
+    # ``merged`` is fully independent: base was deep-copied (above) and every
+    # gap-filled value was deep-copied on assignment, so no mutable field is
+    # shared with any source snapshot.
+    return merged
 
 
 def _merge_drivetrain(
