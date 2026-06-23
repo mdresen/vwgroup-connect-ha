@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b2] - 2026-06-23
+
+> **Beta / pre-release** — hotfix for the b1 multi-channel live test.
+
+### Fixed
+
+- **The supplementary vw.de read channel now arms reliably alongside an EU Data Act portal entry.** In b1 the supplementary channel reused the shared session, and because vw.de and the portal share the same login host and cookie names, importing the vw.de cookies clobbered the portal's — the resume probe failed ("cookies stale") and the merge never ran. The vw.de channel now uses its own isolated session, so the two channels can't interfere; this also clears the duplicate-entity warnings that the cookie clash could trigger. Update and restart — the saved cookies should now resume directly (re-add the channel only if they've genuinely expired).
+
 ## [2.15.0b1] - 2026-06-23
 
 > **Beta / pre-release** — bundles the unreleased a11–a13 work plus the EU Data Act read-path expansion, the official data dictionary + raw-field discovery, the multi-channel merge with a live vw.de opt-in, and reliability hardening. Install via the HACS beta channel to test.
