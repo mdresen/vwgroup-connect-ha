@@ -68,6 +68,14 @@ _PROBE_BUDGET_S      = 30
 _PROBE_TOKEN_GUARD   = 50
 _PROBE_CB_THRESHOLD  = 3
 
+# v2.15.0b1 (B4) — account-scoped rate-limit lockout. When a backend hard-limits
+# us (HTTP 430, or 429 still firing after the retry budget is spent), pause ALL
+# requests on this client for a cool-down window instead of hammering. A hammered
+# account can get locked for hours (myskoda #1053 precedent), so the cure must not
+# be more polling. The hold is per-client = per-account (one client per entry).
+_LOCKOUT_429_S = 1800   # 30 min once 429 retries are exhausted
+_LOCKOUT_430_S = 7200   # 2 h on a hard 430 (explicit lockout signal)
+
 
 class _AuthStormSignal(Exception):
     """Internal sentinel — a probe got HTTP 401.
@@ -188,6 +196,10 @@ class CariadBaseClient:
         self.last_rate_limit_remaining: int | None = None
         self.last_rate_limit_limit: int | None = None
         self.last_rate_limit_reset_at: str | None = None
+        # v2.15.0b1 (B4) — account-scoped rate-limit lockout deadline
+        # (monotonic). Set on HTTP 430 / 429-exhaustion; checked at the top of
+        # _request so we stop sending until the backend has cooled down.
+        self._rate_limit_locked_until: float | None = None
         # v1.19.2 (#118 eismarkt) — token persistence callback hook.
         # Coordinator wires this to ``TokenStorage.save`` so every
         # successful authenticate() / _refresh_tokens() result is
@@ -1010,6 +1022,28 @@ class CariadBaseClient:
         """Authenticated POST."""
         return await self._request("POST", url, **kwargs)
 
+    def _rate_lockout_remaining(self) -> int:
+        """Seconds left on the account-scoped rate-limit lockout (0 = none).
+
+        Self-clearing: once the deadline passes, the lock is dropped so the
+        next request goes through normally."""
+        if self._rate_limit_locked_until is None:
+            return 0
+        remaining = self._rate_limit_locked_until - time.monotonic()
+        if remaining <= 0:
+            self._rate_limit_locked_until = None
+            return 0
+        return int(remaining)
+
+    def _enter_rate_lockout(self, seconds: int, status: int) -> None:
+        """Pause all requests on this client for ``seconds`` (B4)."""
+        self._rate_limit_locked_until = time.monotonic() + seconds
+        _LOGGER.warning(
+            "Account rate-limit lockout (HTTP %d) on %s — pausing all requests"
+            " for %d min to avoid a multi-hour account lock",
+            status, self._brand.name, seconds // 60,
+        )
+
     async def _request(
         self, method: str, url: str, retry: bool = True, _attempt: int = 0, **kwargs: Any
     ) -> Any:
@@ -1027,7 +1061,16 @@ class CariadBaseClient:
         - Transient network errors (DNS / connection refused / mid-stream
           disconnects / asyncio timeouts) → same backoff as server errors.
           Verified pattern from we_connect_id #166 and myskoda #731.
+        - HTTP 430 / repeated 429 → account-scoped lockout (B4): stop sending
+          on this client for a cool-down window so a rate-limited account does
+          not get hammered into a multi-hour lock.
         """
+        locked = self._rate_lockout_remaining()
+        if locked > 0:
+            raise APIError(
+                429, url,
+                f"rate-limit lockout active — {locked}s remaining (account cooldown)",
+            )
         headers = kwargs.pop("headers", {})
         headers["Authorization"] = f"Bearer {self._access_token}"
         headers["Accept"] = "application/json"
@@ -1051,6 +1094,12 @@ class CariadBaseClient:
                     _LOGGER.debug("Rate limited (429) — retrying in %ds", wait)
                     await asyncio.sleep(wait)
                     return await self._request(method, url, retry=retry, _attempt=_attempt + 1, **kwargs)
+                if resp.status == 429:
+                    # retries exhausted — back off the whole account (B4)
+                    self._enter_rate_lockout(_LOCKOUT_429_S, 429)
+                if resp.status == 430:
+                    # explicit hard lockout signal — long account-scoped hold (B4)
+                    self._enter_rate_lockout(_LOCKOUT_430_S, 430)
                 if resp.status in (500, 502, 503, 504) and _attempt < 3:
                     wait = (2 ** _attempt) * 3
                     _LOGGER.debug("Server error %d — retrying in %ds", resp.status, wait)
