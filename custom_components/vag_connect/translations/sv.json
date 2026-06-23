@@ -370,6 +370,9 @@
       "raw_api_fields": {
         "name": "Råa API-fält"
       },
+      "data_source_channel": {
+        "name": "Datakällkanal"
+      },
       "error_reporter_count": {
         "name": "Felrapportör"
       },

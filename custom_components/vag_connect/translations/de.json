@@ -387,6 +387,9 @@
       "raw_api_fields": {
         "name": "Rohe API-Felder"
       },
+      "data_source_channel": {
+        "name": "Datenquelle (Kanal)"
+      },
       "error_reporter_count": {
         "name": "Fehler-Berichter"
       },

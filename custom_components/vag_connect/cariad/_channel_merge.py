@@ -28,12 +28,17 @@ Merge rule (gap-fill, priority order):
 """
 from __future__ import annotations
 
+import asyncio
 import copy
+import logging
+from collections.abc import Awaitable
 from dataclasses import fields, replace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .models import VehicleData
+
+_LOGGER = logging.getLogger(__name__)
 
 # Identity / bookkeeping fields the merge must never touch.
 _SKIP_FIELDS = frozenset(
@@ -121,3 +126,39 @@ def _merge_drivetrain(
     if has_battery or has_combustion:
         merged.is_electric = has_battery and not has_combustion
         merged.is_hybrid = has_battery and has_combustion
+
+
+async def gather_and_merge(
+    primary_name: str,
+    primary: "VehicleData",
+    suppliers: list[tuple[str, Awaitable["VehicleData | None"]]],
+) -> "VehicleData":
+    """Read supplementary channels concurrently and merge them onto ``primary``.
+
+    The async layer over :func:`merge_channels` for the C1 multi-channel poll:
+    ``primary`` is the already-fetched highest-trust snapshot (e.g. brand-native
+    / MBB) and ``suppliers`` are ``(channel_name, awaitable→VehicleData|None)``
+    read coroutines for read-only channels (EU Data Act portal, vw.de). They run
+    concurrently; a supplier that raises or returns None is skipped (a read-only
+    fallback failing must never sink the whole poll). Returns ``primary`` verbatim
+    when there are no suppliers or none succeed — so single-channel polling is
+    byte-for-byte unchanged. The merge keeps ``primary`` highest priority, so a
+    read-only channel only ever fills gaps; command routing is untouched.
+    """
+    if not suppliers:
+        return primary
+    results = await asyncio.gather(
+        *(awaitable for _name, awaitable in suppliers),
+        return_exceptions=True,
+    )
+    sources: list[tuple[str, "VehicleData"]] = [(primary_name, primary)]
+    for (name, _awaitable), res in zip(suppliers, results):
+        if isinstance(res, BaseException):
+            _LOGGER.debug("supplementary channel %s failed, skipped: %s",
+                          name, type(res).__name__)
+            continue
+        if res is not None:
+            sources.append((name, res))
+    if len(sources) == 1:
+        return primary
+    return merge_channels(sources)

@@ -370,6 +370,9 @@
       "raw_api_fields": {
         "name": "Champs API bruts"
       },
+      "data_source_channel": {
+        "name": "Canal source des données"
+      },
       "error_reporter_count": {
         "name": "Rapporteur d'erreurs"
       },

@@ -370,6 +370,9 @@
       "raw_api_fields": {
         "name": "Ruwe API-velden"
       },
+      "data_source_channel": {
+        "name": "Gegevensbronkanaal"
+      },
       "error_reporter_count": {
         "name": "Foutmelder"
       },

@@ -370,6 +370,9 @@
       "raw_api_fields": {
         "name": "Campos API sin procesar"
       },
+      "data_source_channel": {
+        "name": "Canal de origen de datos"
+      },
       "error_reporter_count": {
         "name": "Reportador de errores"
       },

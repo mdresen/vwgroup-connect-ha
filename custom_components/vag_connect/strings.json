@@ -456,6 +456,9 @@
       "raw_api_fields": {
         "name": "Raw API fields"
       },
+      "data_source_channel": {
+        "name": "Data source channel"
+      },
       "error_reporter_count": {
         "name": "Error Reporter"
       },

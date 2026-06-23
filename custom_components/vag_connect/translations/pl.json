@@ -370,6 +370,9 @@
       "raw_api_fields": {
         "name": "Surowe pola API"
       },
+      "data_source_channel": {
+        "name": "Kanał źródła danych"
+      },
       "error_reporter_count": {
         "name": "Raporter błędów"
       },

@@ -1009,6 +1009,18 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
     ),
+    # b1/C1 — data provenance. Shows which channel(s) produced the snapshot
+    # (e.g. "eu_data_act+mbb") once the multi-channel merge runs. Gated on
+    # data-present so single-channel entries (source_channel=None) never get a
+    # phantom; only a merged poll spawns it.
+    VagSensorDescription(
+        key="data_source_channel",
+        translation_key="data_source_channel",
+        data_key="source_channel",
+        icon="mdi:transit-connection-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     VagSensorDescription(
         key="error_reporter_count",
         translation_key="error_reporter_count",
@@ -1657,6 +1669,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # b1/A6 — raw-discovery sensor only spawns when the portal actually
     # delivered unmapped fields (empty dict on every other brand/channel).
     "raw_api_fields",
+    # b1/C1 — provenance sensor only spawns when a multi-channel merge set
+    # source_channel (None on single-channel entries).
+    "data_source_channel",
     "electric_range_km",
     "combustion_range_km",
     "total_range_km",

@@ -370,6 +370,9 @@
       "raw_api_fields": {
         "name": "Nezpracovaná pole API"
       },
+      "data_source_channel": {
+        "name": "Kanál zdroje dat"
+      },
       "error_reporter_count": {
         "name": "Hlásič chyb"
       },

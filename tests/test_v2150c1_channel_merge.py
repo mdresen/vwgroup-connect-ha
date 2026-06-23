@@ -5,10 +5,54 @@ VIN (the Golf GTE case: fuel from one channel, SoC from another, odometer from
 a third) into a single VehicleData with provenance."""
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
-from custom_components.vag_connect.cariad._channel_merge import merge_channels
+from custom_components.vag_connect.cariad._channel_merge import (
+    gather_and_merge,
+    merge_channels,
+)
 from custom_components.vag_connect.cariad.models import VehicleData
+
+
+async def _ok(data: VehicleData) -> VehicleData:
+    return data
+
+
+async def _fail() -> VehicleData:
+    raise RuntimeError("supplementary channel down")
+
+
+async def _none() -> VehicleData | None:
+    return None
+
+
+class TestSourceChannelSensor:
+    """C1 provenance sensor reads VehicleData.source_channel."""
+
+    def _sensor(self, source_channel: str | None) -> object:
+        from unittest.mock import MagicMock
+
+        from custom_components.vag_connect.sensor import (
+            VagConnectSensor,
+            VagSensorDescription,
+        )
+        coord = MagicMock()
+        coord.data = {"X": {"vin": "X", "source_channel": source_channel}}
+        coord.vehicles = coord.data
+        coord.is_read_only = MagicMock(return_value=False)
+        coord.last_update_success = True
+        desc = VagSensorDescription(
+            key="data_source_channel", data_key="source_channel"
+        )
+        return VagConnectSensor(coord, "X", desc)
+
+    def test_value_passthrough(self) -> None:
+        assert self._sensor("eu_data_act+mbb").native_value == "eu_data_act+mbb"
+
+    def test_none_value(self) -> None:
+        assert self._sensor(None).native_value is None
 
 
 class TestChannelMerge:
@@ -69,3 +113,41 @@ class TestChannelMerge:
     def test_empty_sources_raises(self) -> None:
         with pytest.raises(ValueError):
             merge_channels([])
+
+
+class TestGatherAndMerge:
+    """C1 async orchestrator: read suppliers concurrently, merge, tolerate
+    per-channel failure, never sink the poll on a read-only fallback."""
+
+    def test_no_suppliers_returns_primary_identity(self) -> None:
+        primary = VehicleData(vin="X", fuel_level=40)
+        out = asyncio.run(gather_and_merge("mbb", primary, []))
+        assert out is primary  # byte-for-byte single-channel passthrough
+
+    def test_supplier_success_merges(self) -> None:
+        primary = VehicleData(vin="X", fuel_level=40)
+        supp = VehicleData(vin="X", battery_soc=80)
+        out = asyncio.run(gather_and_merge("mbb", primary, [("eu_data_act", _ok(supp))]))
+        assert out.fuel_level == 40 and out.battery_soc == 80
+        assert out.source_channel == "eu_data_act+mbb"
+
+    def test_failing_supplier_is_tolerated(self) -> None:
+        primary = VehicleData(vin="X", fuel_level=40)
+        out = asyncio.run(gather_and_merge("mbb", primary, [("eu_data_act", _fail())]))
+        assert out.fuel_level == 40            # primary survives
+        assert out.battery_soc is None
+
+    def test_none_supplier_skipped(self) -> None:
+        primary = VehicleData(vin="X", fuel_level=40)
+        out = asyncio.run(gather_and_merge("mbb", primary, [("vwde", _none())]))
+        assert out is primary
+
+    def test_mixed_success_and_failure(self) -> None:
+        primary = VehicleData(vin="X", fuel_level=40)
+        good = VehicleData(vin="X", battery_soc=80)
+        out = asyncio.run(gather_and_merge(
+            "mbb", primary,
+            [("dead", _fail()), ("eu_data_act", _ok(good))],
+        ))
+        assert out.fuel_level == 40 and out.battery_soc == 80
+        assert out.source_channel == "eu_data_act+mbb"
