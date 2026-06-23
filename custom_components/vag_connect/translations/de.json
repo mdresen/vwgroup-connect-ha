@@ -1035,6 +1035,10 @@
     "ola_headers_outdated": {
       "description": "VWs Online-Services-Backend (OLA) hat **{count}** Anfragen für {brand} in Folge mit HTTP 403 Forbidden abgelehnt.\n\nDas ist **kein** Problem mit veralteten Headern oder einer App-Version, und es lässt sich nicht durch Neu-Konfigurieren oder erneutes Anmelden beheben. VW hat den Zugang zu den Online-Diensten für {brand} (und SEAT) offenbar serverseitig gesperrt — die offizielle App nutzt einen separaten, voll vertrauenswürdigen Zugang, den wir nicht nachbauen können. Ein Header- oder App-Versions-Override bringt ihn nicht zurück.\n\nWo möglich, fällt die Integration auf das schreibgeschützte EU-Data-Act-Portal zurück und holt die noch verfügbaren Daten. Die {brand}-Daten kommen von selbst wieder, sobald VW den Zugang freigibt. Auf deiner Seite ist nichts zu tun — diese Warnung verschwindet automatisch, sobald Anfragen wieder durchgehen.",
       "title": "{brand}-Online-Dienste von VW gesperrt — {count} aufeinanderfolgende 403-Fehler"
+    },
+    "supplementary_reauth": {
+      "title": "Volkswagen.de-Lesekanal: erneuter Login nötig",
+      "description": "Der zusätzliche volkswagen.de-Lesekanal konnte seine Sitzung nicht fortsetzen (Volkswagen verlangt erneut den Einmalcode per E-Mail). Die Hauptdaten deines Fahrzeugs sind nicht betroffen. Öffne die Optionen dieser Integration und führe \"Volkswagen.de-Lesekanal hinzufügen\" erneut aus, um die zusätzlichen vw.de-Daten wiederherzustellen."
     }
   },
   "selector": {

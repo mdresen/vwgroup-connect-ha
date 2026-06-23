@@ -162,6 +162,32 @@ def clear_auth_issues(hass: HomeAssistant, entry_id: str) -> None:
         ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_{reason}")
 
 
+def raise_issue_supplementary_reauth(hass: HomeAssistant, entry_id: str) -> None:
+    """v2.15.0b5 (C1) — the supplementary vw.de read channel can't silently
+    resume (login=otp_required); prompt the user to re-add it. Not auto-fixable
+    (re-login needs the email-OTP via the OptionsFlow), WARNING severity — the
+    primary channel keeps working regardless. Idempotent."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_supplementary_reauth",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="supplementary_reauth",
+        learn_more_url="https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/FAQ.md",
+    )
+    _LOGGER.info(
+        "VAG Connect: supplementary vw.de channel needs re-login — Repair issue"
+        " raised for entry %s", entry_id,
+    )
+
+
+def clear_supplementary_reauth_issue(hass: HomeAssistant, entry_id: str) -> None:
+    """Clear the supplementary re-login Repair issue (armed / disabled)."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_supplementary_reauth")
+
+
 def raise_issue_requirements_conflict(hass: HomeAssistant) -> None:
     """Raise a repair issue for configuration problems."""
     ir.async_create_issue(

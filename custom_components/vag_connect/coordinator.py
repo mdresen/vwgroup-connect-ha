@@ -1081,13 +1081,27 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if arm is None:
             return
         cookies = data.get(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES) or []
+        armed = False
         try:
-            await arm(cookies)
+            armed = bool(await arm(cookies))
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
                 "VAG Connect: supplementary channel arming failed (%s)"
                 " — primary channel unaffected.", type(err).__name__,
             )
+        # v2.15.0b5 (C1) — when the vw.de session is OTP-dead, surface a
+        # graceful "re-login" Repair issue (the channel can't silently resume);
+        # clear it once the channel arms again.
+        from .repairs import (  # noqa: PLC0415
+            clear_supplementary_reauth_issue,
+            raise_issue_supplementary_reauth,
+        )
+        if not armed and getattr(
+            self._cariad_client, "_supplementary_needs_reauth", False
+        ):
+            raise_issue_supplementary_reauth(self.hass, self.entry.entry_id)
+        else:
+            clear_supplementary_reauth_issue(self.hass, self.entry.entry_id)
 
     async def _merge_supplementary(self, vin: str, primary: VehicleData) -> VehicleData:
         """v2.15.0b1 (C1) — union armed supplementary read-only channels onto

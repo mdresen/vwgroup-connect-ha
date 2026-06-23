@@ -628,6 +628,34 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if insp is not None and d.service_km is None:
         d.service_km = insp
 
+    # b5 — flat MQB maintenance intervals + lock + window-heating that the raw
+    # field discovery surfaced in real Golf-class portal payloads. Mapping them
+    # gives the portal channel real service/lock telemetry without the (OTP-bound)
+    # vw.de channel. Values are portal-reported; a negative interval = overdue.
+    svc_km = _to_int(first("maintenance_interval_distance_until_inspection"))
+    if svc_km is not None and d.service_km is None:
+        d.service_km = svc_km
+    svc_days = _to_int(first("maintenance_interval__time_until_inspection"))
+    if svc_days is not None and d.service_due_in_days is None:
+        d.service_due_in_days = svc_days
+    oil_km = _to_int(first("maintenance_interval_distance_until_oil_change"))
+    if oil_km is not None and d.oil_service_km is None:
+        d.oil_service_km = oil_km
+    oil_days = _to_int(first("maintenance_interval__time_until_oil_change"))
+    if oil_days is not None and d.oil_service_due_in_days is None:
+        d.oil_service_due_in_days = oil_days
+
+    lock = first("lock_state", "central_lock_state")
+    if lock is not None and d.doors_locked is None:
+        d.doors_locked = str(lock).lower() in ("locked", "safe")
+
+    whf = first("window_heating_state_front")
+    if whf is not None and d.window_heating_front is None:
+        d.window_heating_front = str(whf).lower() in ("on", "active", "true", "1")
+    whr = first("window_heating_state_rear")
+    if whr is not None and d.window_heating_back is None:
+        d.window_heating_back = str(whr).lower() in ("on", "active", "true", "1")
+
     # b1/A2 — distance-unit conversion. UK/US cars report distances in miles
     # plus a companion unit field; our sensors are km-typed, so convert once
     # here (km cars hit the no-op branch). Post-process so the individual field

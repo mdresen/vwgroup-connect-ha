@@ -149,6 +149,10 @@ class CariadBaseClient:
         # (identity.vwgroup.io) AND cookie names (auth0/did/idkit), so a shared
         # jar would clobber the primary's cookies and fail the resume probe.
         self._supplementary_session: Any = None
+        # v2.15.0b5 (C1) — set True when the supplementary vw.de session can't
+        # silently resume (login=otp_required) so the coordinator raises a
+        # "re-login" Repair issue. Stays False for transient/other failures.
+        self._supplementary_needs_reauth: bool = False
         # When the website-authproxy login surfaces an email-OTP challenge,
         # the code the user enters in the config flow is handed to the
         # connector via this field before authenticate() runs.
@@ -549,6 +553,7 @@ class CariadBaseClient:
         # session (see the field comment: a shared jar clobbers a cookie-based
         # primary's IDP cookies and fails the resume probe).
         await self.close_supplementary()
+        self._supplementary_needs_reauth = False
         session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True))
         try:
             connector = WebsiteAuthProxyConnector(
@@ -565,6 +570,9 @@ class CariadBaseClient:
                 except Exception as err:  # noqa: BLE001
                     login = f"error:{type(err).__name__}"
                 if login != "ok":
+                    # Only an OTP-bound dead session warrants the "re-login"
+                    # Repair prompt; transient/network failures don't.
+                    self._supplementary_needs_reauth = login == "otp_required"
                     _LOGGER.warning(
                         "VAG Connect: supplementary vw.de channel could not"
                         " resume (probe=stale, login=%s) — re-add it from the"

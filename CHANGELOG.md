@@ -38,6 +38,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b5] - 2026-06-23
+
+> **Beta / pre-release** — more service data straight from the portal + graceful vw.de re-login.
+
+### Added
+
+- **Service & maintenance intervals, lock status and window heating now come straight from the EU Data Act portal.** The raw-field discovery surfaced that the portal already sends inspection + oil-change intervals (distance and days), central-lock state and window-heating state for Golf-class cars — these are now mapped onto the proper sensors, so you get them without needing the separate vw.de channel.
+
+### Fixed
+
+- **The vw.de read channel now fails gracefully instead of silently.** When its session can't be resumed without a fresh one-time code, it raises a clear "Volkswagen.de read channel needs re-login" repair you can act on, rather than just logging "stale". The primary channel is unaffected, and the repair clears itself once the channel is back.
+
 ## [2.15.0b4] - 2026-06-23
 
 > **Beta / pre-release** — supplementary-channel resume fix.

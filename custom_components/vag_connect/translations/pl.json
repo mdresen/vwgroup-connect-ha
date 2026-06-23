@@ -1033,6 +1033,10 @@
     "ola_headers_outdated": {
       "description": "Backend usług online VW Group (OLA) odrzucił **{count}** żądań z rzędu dla {brand} z błędem HTTP 403 Forbidden.\n\nTo **nie** jest problem z nieaktualnymi nagłówkami ani wersją aplikacji i nie da się go naprawić przez ponowną konfigurację czy ponowne logowanie. VW najwyraźniej ograniczył dostęp do usług online dla {brand} (i SEAT) po swojej stronie — oficjalna aplikacja korzysta z osobnego, w pełni zaufanego dostępu, którego nie jesteśmy w stanie odtworzyć. Zmiana nagłówka ani wersji aplikacji tego nie przywróci.\n\nTam, gdzie to możliwe, integracja przełącza się na portal EU Data Act tylko do odczytu, aby pobrać wciąż dostępne dane. Dane {brand} wrócą same, gdy VW przywróci dostęp. Nie musisz nic robić — to ostrzeżenie zniknie automatycznie, gdy żądania znów zaczną się udawać.",
       "title": "Usługi online {brand} zablokowane po stronie VW — {count} kolejnych błędów 403"
+    },
+    "supplementary_reauth": {
+      "title": "Kanał odczytu Volkswagen.de wymaga ponownego logowania",
+      "description": "Dodatkowy kanał odczytu volkswagen.de nie mógł wznowić sesji (Volkswagen ponownie prosi o jednorazowy kod e-mail). Główne dane pojazdu pozostają nienaruszone. Otwórz opcje tej integracji i ponownie uruchom „Dodaj kanał odczytu Volkswagen.de”, aby przywrócić dodatkowe dane vw.de."
     }
   },
   "services": {

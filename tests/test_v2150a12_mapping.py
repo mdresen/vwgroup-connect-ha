@@ -129,3 +129,34 @@ class TestEnumShorten:
 
     def test_is_charging_unchanged(self) -> None:
         assert _map({"charging_state": "charging"}).is_charging is True
+
+
+class TestB5MaintenanceLock:
+    """b5 — map the portal raw fields the live Golf surfaced (service intervals,
+    lock, window heating) so the portal channel delivers them without vw.de."""
+
+    def test_maintenance_intervals(self) -> None:
+        d = _map({
+            "maintenance_interval_distance_until_inspection": "-14900",
+            "maintenance_interval__time_until_inspection": "-155",
+            "maintenance_interval_distance_until_oil_change": "-1700",
+            "maintenance_interval__time_until_oil_change": "-17",
+        })
+        assert d.service_km == -14900
+        assert d.service_due_in_days == -155
+        assert d.oil_service_km == -1700
+        assert d.oil_service_due_in_days == -17
+
+    def test_lock_state(self) -> None:
+        assert _map({"lock_state": "locked"}).doors_locked is True
+        assert _map({"lock_state": "unlocked"}).doors_locked is False
+
+    def test_window_heating(self) -> None:
+        d = _map({"window_heating_state_front": "on", "window_heating_state_rear": "off"})
+        assert d.window_heating_front is True
+        assert d.window_heating_back is False
+
+    def test_mapped_fields_leave_raw(self) -> None:
+        d = _map({"maintenance_interval__time_until_inspection": "-155", "x": "1"})
+        assert "maintenance_interval__time_until_inspection" not in d.raw_unmapped_fields
+        assert d.raw_unmapped_fields.get("x") == "1"
