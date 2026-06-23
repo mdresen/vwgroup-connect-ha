@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b4] - 2026-06-23
+
+> **Beta / pre-release** — supplementary-channel resume fix.
+
+### Fixed
+
+- **The supplementary vw.de channel now resumes from freshly-added cookies.** Even after re-adding the channel, it kept reporting "cookies stale" — the cheap resume probe returns a redirect for a valid session, and the supplementary path gave up on it instead of trying the full silent login (which a valid session completes without an OTP). It now falls back to that login exactly like the primary vw.de channel, so a freshly-added channel arms and merges. If the session is genuinely dead the log now says why (`login=otp_required` → re-add), and the primary channel is unaffected either way.
+
 ## [2.15.0b3] - 2026-06-23
 
 > **Beta / pre-release** — declutter: hide entities without data.

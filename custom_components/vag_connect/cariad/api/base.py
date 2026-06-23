@@ -556,13 +556,23 @@ class CariadBaseClient:
             )
             connector.import_cookies(cookies)
             if not await connector.session_alive():
-                _LOGGER.warning(
-                    "VAG Connect: supplementary vw.de channel cookies are stale"
-                    " — re-add the channel from the integration options to"
-                    " refresh it; the primary channel is unaffected."
-                )
-                await session.close()
-                return False
+                # session_alive is a cheap best-effort probe that returns False
+                # on a redirect; fall back to the full silent login exactly like
+                # the primary website-authproxy path — VALID cookies resume here
+                # WITHOUT an OTP. Only a genuinely dead session needs a re-add.
+                try:
+                    login = await connector.begin_login()
+                except Exception as err:  # noqa: BLE001
+                    login = f"error:{type(err).__name__}"
+                if login != "ok":
+                    _LOGGER.warning(
+                        "VAG Connect: supplementary vw.de channel could not"
+                        " resume (probe=stale, login=%s) — re-add it from the"
+                        " integration options; the primary channel is"
+                        " unaffected.", login,
+                    )
+                    await session.close()
+                    return False
             self._supplementary_authproxy = connector
             self._supplementary_session = session
             _LOGGER.info(

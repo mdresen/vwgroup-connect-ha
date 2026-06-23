@@ -77,6 +77,7 @@ class TestArmSupplementary:
         conn = MagicMock()
         conn.import_cookies = MagicMock()
         conn.session_alive = AsyncMock(return_value=True)
+        conn.begin_login = AsyncMock()
         with patch("aiohttp.ClientSession", return_value=sess), \
              patch(_CONN_PATH, return_value=conn) as ctor:
             ok = asyncio.run(c.arm_supplementary_authproxy(_COOKIE))
@@ -87,14 +88,33 @@ class TestArmSupplementary:
         assert ctor.call_args.args[0] is sess
         assert ctor.call_args.args[0] is not c._session
         sess.close.assert_not_awaited()
+        conn.begin_login.assert_not_awaited()  # alive → no login fallback
 
-    def test_stale_closes_session_and_does_not_arm(self) -> None:
+    def test_resume_via_begin_login_when_probe_stale(self) -> None:
+        # the b3-regression fix: session_alive is unreliable; valid cookies
+        # still resume via begin_login() WITHOUT an OTP.
         c = _client()
         sess = MagicMock()
         sess.close = AsyncMock()
         conn = MagicMock()
         conn.import_cookies = MagicMock()
         conn.session_alive = AsyncMock(return_value=False)
+        conn.begin_login = AsyncMock(return_value="ok")
+        with patch("aiohttp.ClientSession", return_value=sess), \
+             patch(_CONN_PATH, return_value=conn):
+            ok = asyncio.run(c.arm_supplementary_authproxy(_COOKIE))
+        assert ok is True
+        assert c._supplementary_authproxy is conn
+        sess.close.assert_not_awaited()
+
+    def test_stale_when_login_needs_otp(self) -> None:
+        c = _client()
+        sess = MagicMock()
+        sess.close = AsyncMock()
+        conn = MagicMock()
+        conn.import_cookies = MagicMock()
+        conn.session_alive = AsyncMock(return_value=False)
+        conn.begin_login = AsyncMock(return_value="otp_required")
         with patch("aiohttp.ClientSession", return_value=sess), \
              patch(_CONN_PATH, return_value=conn):
             ok = asyncio.run(c.arm_supplementary_authproxy(_COOKIE))
