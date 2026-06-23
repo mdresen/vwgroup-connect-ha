@@ -110,17 +110,23 @@ def build_unexpected_keys_report(
         f"- **Reported at:** `{datetime.now(tz=timezone.utc).isoformat(timespec='seconds')}`"
     )
     lines.append("")
-    lines.append("| Path | Sample (masked) | Endpoint | First seen |")
-    lines.append("|---|---|---|---|")
+    # b1/A3 — annotate each finding with the official EU Data Act spec name
+    # when the path identifies a known field UUID. Turns an opaque UUID into a
+    # human field name in the bug report (and is the same dictionary the raw
+    # field discovery uses). Enrichment only — never fails the report.
+    from .auth import eu_data_dictionary as _dd  # noqa: PLC0415
+    lines.append("| Path | Spec field (official) | Sample (masked) | Endpoint | First seen |")
+    lines.append("|---|---|---|---|---|")
     for f in findings_list:
         # Pipe characters in any cell would break the Markdown table.
         # Replace defensively — the masking layer never produces them
         # but a future regex change might.
         path = f.path.replace("|", "\\|")
+        spec = (_dd.describe(f.path) or "—").replace("|", "\\|")
         sample = (f.sample_masked or "").replace("|", "\\|")
         endpoint = (f.endpoint or "").replace("|", "\\|")
         first_seen = f.first_seen_at or ""
-        lines.append(f"| `{path}` | `{sample}` | `{endpoint}` | {first_seen} |")
+        lines.append(f"| `{path}` | {spec} | `{sample}` | `{endpoint}` | {first_seen} |")
     lines.append("")
     lines.append("---")
     lines.append("")
