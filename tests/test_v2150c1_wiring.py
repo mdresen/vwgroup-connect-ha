@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
 from custom_components.vag_connect.cariad.exceptions import AuthenticationError
@@ -51,6 +51,67 @@ class TestSupplementaryReaders:
         conn = MagicMock()
         conn.get_vehicle_data = AsyncMock(side_effect=RuntimeError("boom"))
         assert asyncio.run(c._read_authproxy(conn, "VIN")) is None
+
+
+_COOKIE = [{"name": "auth0", "value": "x", "domain": "identity.vwgroup.io"}]
+_CONN_PATH = (
+    "custom_components.vag_connect.cariad.auth._website_authproxy"
+    ".WebsiteAuthProxyConnector"
+)
+
+
+class TestArmSupplementary:
+    """The dedicated-session fix: arming must use an ISOLATED session (never the
+    shared brand session) so vw.de cookies can't clobber a cookie-based primary
+    (EU Data Act portal) on the identity.vwgroup.io IDP host."""
+
+    def test_no_cookies_returns_false(self) -> None:
+        c = _client()
+        assert asyncio.run(c.arm_supplementary_authproxy(None)) is False
+        assert asyncio.run(c.arm_supplementary_authproxy([])) is False
+
+    def test_alive_arms_with_dedicated_session(self) -> None:
+        c = _client()
+        sess = MagicMock()
+        sess.close = AsyncMock()
+        conn = MagicMock()
+        conn.import_cookies = MagicMock()
+        conn.session_alive = AsyncMock(return_value=True)
+        with patch("aiohttp.ClientSession", return_value=sess), \
+             patch(_CONN_PATH, return_value=conn) as ctor:
+            ok = asyncio.run(c.arm_supplementary_authproxy(_COOKIE))
+        assert ok is True
+        assert c._supplementary_authproxy is conn
+        assert c._supplementary_session is sess
+        # connector built on the DEDICATED session, not the shared one
+        assert ctor.call_args.args[0] is sess
+        assert ctor.call_args.args[0] is not c._session
+        sess.close.assert_not_awaited()
+
+    def test_stale_closes_session_and_does_not_arm(self) -> None:
+        c = _client()
+        sess = MagicMock()
+        sess.close = AsyncMock()
+        conn = MagicMock()
+        conn.import_cookies = MagicMock()
+        conn.session_alive = AsyncMock(return_value=False)
+        with patch("aiohttp.ClientSession", return_value=sess), \
+             patch(_CONN_PATH, return_value=conn):
+            ok = asyncio.run(c.arm_supplementary_authproxy(_COOKIE))
+        assert ok is False
+        assert c._supplementary_authproxy is None
+        sess.close.assert_awaited()  # isolated session closed, no leak
+
+    def test_close_supplementary(self) -> None:
+        c = _client()
+        sess = MagicMock()
+        sess.close = AsyncMock()
+        c._supplementary_session = sess
+        c._supplementary_authproxy = MagicMock()
+        asyncio.run(c.close_supplementary())
+        assert c._supplementary_session is None
+        assert c._supplementary_authproxy is None
+        sess.close.assert_awaited()
 
 
 def _coord_stub(client: Any, entry_data: dict[str, Any]) -> Any:

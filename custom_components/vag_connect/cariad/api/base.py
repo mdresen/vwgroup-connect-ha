@@ -143,6 +143,12 @@ class CariadBaseClient:
         # the primary read + command routing are completely unaffected. None =
         # the default single-channel behaviour.
         self._supplementary_authproxy: Any = None
+        # v2.15.0b1 (C1) — DEDICATED aiohttp session for the supplementary
+        # connector. It must NOT share the brand client's session: vw.de and a
+        # cookie-based primary (EU Data Act portal) share the IDP host
+        # (identity.vwgroup.io) AND cookie names (auth0/did/idkit), so a shared
+        # jar would clobber the primary's cookies and fail the resume probe.
+        self._supplementary_session: Any = None
         # When the website-authproxy login surfaces an email-OTP challenge,
         # the code the user enters in the config flow is handed to the
         # connector via this field before authenticate() runs.
@@ -534,13 +540,19 @@ class CariadBaseClient:
         """
         if not cookies:
             return False
+        import aiohttp  # noqa: PLC0415
+
         from ..auth._website_authproxy import (  # noqa: PLC0415
             WebsiteAuthProxyConnector,
         )
+        # Dedicated, isolated session + cookie jar — never the shared brand
+        # session (see the field comment: a shared jar clobbers a cookie-based
+        # primary's IDP cookies and fails the resume probe).
+        await self.close_supplementary()
+        session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True))
         try:
             connector = WebsiteAuthProxyConnector(
-                self._session, self._email, self._password,
-                brand=self._brand.name,
+                session, self._email, self._password, brand=self._brand.name,
             )
             connector.import_cookies(cookies)
             if not await connector.session_alive():
@@ -549,8 +561,10 @@ class CariadBaseClient:
                     " — re-add the channel from the integration options to"
                     " refresh it; the primary channel is unaffected."
                 )
+                await session.close()
                 return False
             self._supplementary_authproxy = connector
+            self._supplementary_session = session
             _LOGGER.info(
                 "VAG Connect: supplementary vw.de read channel armed"
                 " (read-only, merged onto the primary)."
@@ -562,7 +576,20 @@ class CariadBaseClient:
                 " — primary channel unaffected.", type(err).__name__,
             )
             self._supplementary_authproxy = None
+            await session.close()
             return False
+
+    async def close_supplementary(self) -> None:
+        """Close the dedicated supplementary session (on unload / re-arm).
+        Idempotent + fail-soft."""
+        sess = getattr(self, "_supplementary_session", None)
+        self._supplementary_session = None
+        self._supplementary_authproxy = None
+        if sess is not None:
+            try:
+                await sess.close()
+            except Exception:  # noqa: BLE001
+                pass
 
     def set_website_authproxy_mode(
         self,

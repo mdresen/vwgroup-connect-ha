@@ -1457,6 +1457,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._started = False
         # v2.0.0 (Big-Bang) — stop push managers before dropping client.
         await self.async_stop_push_managers()
+        # v2.15.0b1 (C1) — close the dedicated supplementary vw.de session so
+        # we don't leak an aiohttp session on unload/reload.
+        close_supp = getattr(self._cariad_client, "close_supplementary", None)
+        if close_supp is not None:
+            try:
+                await close_supp()
+            except Exception:  # noqa: BLE001
+                pass
         self._cariad_client = None
         _LOGGER.debug("VAG Connect: shutdown complete")
 
