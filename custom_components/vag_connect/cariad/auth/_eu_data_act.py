@@ -474,6 +474,25 @@ def _is_miles(unit_raw: str | None) -> bool:
     return str(unit_raw).strip().lower() in ("miles", "mile", "mi", "1")
 
 
+_ENUM_PREFIXES = (
+    "CHARGE_STATE_", "CHARGING_STATE_", "CHARGE_MODE_", "CHARGING_MODE_",
+    "IMMEDIATE_ACTION_STATE_", "PLUG_STATE_", "ENERGY_FLOW_",
+)
+
+
+def _shorten_enum(value: str | None) -> str | None:
+    """Strip a verbose VW protocol prefix from an enum label for display
+    (e.g. ``CHARGE_STATE_CHARGING_HV_BATTERY`` → ``CHARGING_HV_BATTERY``).
+    Already-short / non-prefixed values pass through unchanged."""
+    if not isinstance(value, str):
+        return value
+    up = value.upper()
+    for pref in _ENUM_PREFIXES:
+        if up.startswith(pref) and len(value) > len(pref):
+            return value[len(pref):]
+    return value
+
+
 def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -521,12 +540,14 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     cs = first("charging_state_report.current_charge_state", "current_charge_state",
                "chargingState", "charging_state")
     if cs:
-        d.charging_state = cs
+        # is_charging from the RAW value (logic unchanged); store a shortened
+        # label for display (a13/A4 — strips verbose VW enum prefixes).
         d.is_charging = cs.lower() in ("charging", "chargingacactive", "active")
+        d.charging_state = _shorten_enum(cs)
 
     cmode = first("charging_state_report.charge_mode", "charge_mode")
     if cmode:
-        d.charge_mode = cmode
+        d.charge_mode = _shorten_enum(cmode)
 
     tmin = _to_float(first("min_temperature", "battery_min_temperature"))
     if tmin is not None:

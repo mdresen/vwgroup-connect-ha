@@ -112,3 +112,20 @@ class TestDrivetrainDetection:
         d = _map({"fuel_level_current_level": "50"})
         assert d.has_combustion is True
         assert d.is_electric is False and d.has_battery is False
+
+
+class TestEnumShorten:
+    """b1/A4 — strip verbose VW enum prefixes for display."""
+
+    def test_helper_strips_known_prefix(self) -> None:
+        from custom_components.vag_connect.cariad.auth._eu_data_act import _shorten_enum
+        assert _shorten_enum("CHARGE_STATE_CHARGING_HV_BATTERY") == "CHARGING_HV_BATTERY"
+        assert _shorten_enum("charging") == "charging"
+        assert _shorten_enum(None) is None
+
+    def test_charging_state_shortened_in_map(self) -> None:
+        d = _map({"charging_state": "CHARGE_STATE_CHARGING_HV_BATTERY"})
+        assert d.charging_state == "CHARGING_HV_BATTERY"
+
+    def test_is_charging_unchanged(self) -> None:
+        assert _map({"charging_state": "charging"}).is_charging is True
