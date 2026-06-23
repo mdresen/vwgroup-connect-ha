@@ -1307,6 +1307,13 @@ class VehicleData:
     permission_is_owner: bool | None = None
     permission_can_command: bool | None = None
 
+    # b1/B2 — "MBB two-way available" symbol: True when the durable Car-Net
+    # (MBB) backend grants at least one remote command (climate/charge) on a
+    # currently-licensed service for this car. Surfaced as a diagnostic
+    # binary_sensor so users see at a glance whether two-way control is
+    # possible. None = unknown (no operationList this poll / non-MBB car).
+    mbb_two_way_available: bool | None = None
+
     # Engine measurements endpoint. Both temperatures are stored in
     # Celsius after the parser converts from Kelvin if needed
     # (values above 200 are treated as Kelvin and shifted).

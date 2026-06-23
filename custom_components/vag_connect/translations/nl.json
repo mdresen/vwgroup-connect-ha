@@ -654,6 +654,9 @@
       }
     },
     "binary_sensor": {
+      "mbb_two_way_available": {
+        "name": "MBB tweerichting beschikbaar"
+      },
       "doors_locked": {
         "name": "Deuren vergrendeld"
       },

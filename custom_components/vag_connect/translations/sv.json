@@ -654,6 +654,9 @@
       }
     },
     "binary_sensor": {
+      "mbb_two_way_available": {
+        "name": "MBB tvåvägs tillgänglig"
+      },
       "doors_locked": {
         "name": "Dörrar låsta"
       },

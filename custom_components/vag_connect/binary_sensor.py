@@ -40,6 +40,16 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         device_class=BinarySensorDeviceClass.DOOR,
         icon="mdi:car-door",
     ),
+    # b1/B2 — "MBB two-way available" symbol (durable Car-Net remote commands
+    # licensed + granted for this car). Diagnostic; mdi icon only (no VW logo).
+    VagBinarySensorDescription(
+        key="mbb_two_way_available",
+        translation_key="mbb_two_way_available",
+        data_key="mbb_two_way_available",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:car-key",
+    ),
     VagBinarySensorDescription(
         key="windows_open",
         translation_key="windows_open",

@@ -1283,9 +1283,16 @@ class VWEUClient(CariadBaseClient):
     ) -> None:
         """Populate the subscription_* fields from the operationList status
         service licence (surfaces as the subscription sensors in HA)."""
-        from .._mbb import mbb_subscription_active  # noqa: PLC0415
+        from .._mbb import mbb_operation_granted, mbb_subscription_active  # noqa: PLC0415
 
         d.subscription_active = mbb_subscription_active(oplist)
+        # b1/B2 — "two-way available" symbol: at least one remote command
+        # (climate or charge) granted on a currently-licensed service. None when
+        # we have no operationList this poll (unknown), not False.
+        d.mbb_two_way_available = None if oplist is None else (
+            mbb_operation_granted(oplist, "rclima_v1", "P_START_CLIMA_NOSET")
+            or mbb_operation_granted(oplist, "rbatterycharge_v1", "P_START")
+        )
         if oplist is None:
             return
         svc = oplist.status_service
