@@ -696,6 +696,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # AFTER the primary authenticate, so the per-poll merge has it.
             # No-op when none configured; fail-soft (primary unaffected).
             await self._arm_supplementary_channels()
+            # v2.15.0b7 — pre-warm the EU Data Act dictionary cache OFF the event
+            # loop so the Scout report's describe() lookups (which run in-loop)
+            # never trigger a blocking 288 KB file read. lru_cached → one warm-up.
+            try:
+                from .cariad.auth import eu_data_dictionary as _dd  # noqa: PLC0415
+                await self.hass.async_add_executor_job(_dd._load)
+            except Exception:  # noqa: BLE001
+                pass
             vins = await self._cariad_client.get_vehicles()
             if not vins:
                 return False

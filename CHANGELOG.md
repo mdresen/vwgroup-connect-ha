@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b7] - 2026-06-23
+
+> **Beta / pre-release** — event-loop hygiene.
+
+### Fixed
+
+- **No more "blocking call" warning from the data dictionary.** Once the Scout report started naming portal fields from the dictionary, the first lookup read the 288 KB spec file on the event loop. The cache is now warmed off-loop at setup, so the in-poll lookups never block.
+
 ## [2.15.0b6] - 2026-06-23
 
 > **Beta / pre-release** — service-countdown sign fix, no more vw.de code-email storm, unmapped fields in the Scout.
