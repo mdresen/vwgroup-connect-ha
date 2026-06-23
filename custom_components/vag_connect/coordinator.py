@@ -936,9 +936,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .const import (  # noqa: PLC0415
             CONF_DATA_ACT_IDENTIFIERS,
             CONF_EU_DATA_ACT_AUTO_KICKOFF,
+            CONF_SUPPLEMENTARY_EU_PORTAL,
         )
 
-        if not self.entry.options.get(CONF_EU_DATA_ACT_AUTO_KICKOFF, False):
+        if not self.entry.options.get(
+            CONF_EU_DATA_ACT_AUTO_KICKOFF,
+            self.entry.data.get(CONF_EU_DATA_ACT_AUTO_KICKOFF, False),
+        ):
             return
 
         tokens = getattr(self._cariad_client, "_tokens", None)
@@ -946,10 +950,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # v2.13.0 — device-code/QR portal entries (device_grant_portal) use the
         # same EU-Data-Act portal proxy_api, so they need the continuous
         # data-request kickoff too, not just the cookie data_act_portal path.
-        if active_strategy not in ("data_act_portal", "device_grant_portal"):
+        # b12 — AND a portal SUPPLEMENTARY armed on a non-portal primary (e.g.
+        # MBB for commands) needs it too: without an active Custom Data Request
+        # the portal returns no identifier → no_request → zero reads merged. The
+        # kickoff scraper shares the client session, where the supplementary
+        # portal already logged in (armed before this runs), so it's authed.
+        supp_portal = self.entry.data.get(CONF_SUPPLEMENTARY_EU_PORTAL)
+        if (
+            active_strategy not in ("data_act_portal", "device_grant_portal")
+            and not supp_portal
+        ):
             _LOGGER.debug(
-                "Data Act kickoff: skipped (active strategy is %r, not a "
-                "portal strategy)", active_strategy,
+                "Data Act kickoff: skipped (strategy %r, no supplementary "
+                "portal)", active_strategy,
             )
             return
 
@@ -1038,7 +1051,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """
         from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
 
-        portal = getattr(self._cariad_client, "_eu_portal", None)
+        # b12 — also surface the reason for a portal SUPPLEMENTARY (it records
+        # the same last_no_data_reason); previously only the PRIMARY portal was
+        # checked, so a supplementary portal returning no_request/empty failed
+        # SILENTLY (the user saw "added but no data" with nothing in the log).
+        portal = (
+            getattr(self._cariad_client, "_eu_portal", None)
+            or getattr(self._cariad_client, "_supplementary_eu_portal", None)
+        )
         issue_id = f"data_act_no_data_{self.entry.entry_id}"
         reason = getattr(portal, "last_no_data_reason", "") if portal else ""
         if portal is None or not reason:

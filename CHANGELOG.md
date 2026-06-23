@@ -38,7 +38,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.15.0b11] - 2026-06-23
+## [2.15.0b12] - 2026-06-23
+
+> **Beta / pre-release** — the EU Data Act portal as a *supplementary* read channel now actually delivers data (e.g. portal reads alongside MBB commands).
+
+### Fixed
+
+- **Adding the EU Data Act portal as a read channel on a non-portal entry (e.g. an MBB command entry) returned no data — silently.** The portal only delivers while an active "continuous data request" exists for the car, and the request kickoff was only ever run for a portal-*primary* entry. So a portal *supplementary* never got a request → it logged in fine but every read came back empty, with nothing in the log to explain it. Now the kickoff also runs for a configured portal supplementary (it shares the signed-in session), and the "no active data request" notice is surfaced for the supplementary channel too, so it's no longer a silent dead end. **Note:** the kickoff is still opt-in — turn on "EU Data Act: automatically create a custom data request" in the options for the channel to populate (it starts a 1-month data subscription on your portal account).
 
 > **Beta / pre-release** — keeps a durable-MBB entry alive (it was going stale ~an hour after setup).
 
