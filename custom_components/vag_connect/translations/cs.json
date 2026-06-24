@@ -1064,6 +1064,10 @@
     "supplementary_reauth": {
       "title": "Čtecí kanál Volkswagen.de vyžaduje opětovné přihlášení",
       "description": "Doplňkový čtecí kanál volkswagen.de nemohl obnovit relaci (Volkswagen znovu žádá o jednorázový kód e-mailem). Hlavní data vozidla nejsou ovlivněna. Otevři možnosti této integrace a znovu spusť „Přidat čtecí kanál Volkswagen.de“ pro obnovení doplňkových dat vw.de."
+    },
+    "meb_commands_unavailable": {
+      "title": "Vzdálené příkazy nejsou pro toto auto k dispozici ({brand})",
+      "description": "Při nastavování {brand} jste zapnuli vzdálené příkazy MBB, ale tohle je vůz z rodiny MEB / ID (ID.3/4/5/7, Enyaq, Born, Q4). Backend MEB od VW nepodporuje trvalou příkazovou cestu Car-Net — trvalé přihlášení odpovědělo „Unknown user“ — takže příkazy zamykání, klimatizace a nabíjení nelze odeslat.\n\nZáznam zůstává **jen pro čtení**: data vozidla stále chodí přes portál EU Data Act, jen neuvidíte příkazové entity. Jde o známé omezení platformy MEB od VW, nikoli o chybu nastavení — toto upozornění můžete zavřít."
     }
   },
   "services": {

@@ -66,6 +66,11 @@ class CommandFailureReason(StrEnum):
     - ``INVALID_PAYLOAD`` — our bug. Fix and ship.
     - ``BACKEND_ERROR`` — manufacturer 5xx or unexpected 4xx body.
       Transient; do not derive long-term decisions.
+    - ``ATTESTATION_LOCKED`` — VW put this plane behind device attestation
+      (Firebase App Check / Play Integrity), which an open-source client
+      can't satisfy. Distinct from NOT_ENTITLED: it's NOT a subscription
+      problem, so messaging must not send users chasing a phantom renewal.
+      Commands are gone on this channel; reads continue via the portal.
     - ``UNKNOWN`` — default. Don't make assumptions.
     """
 
@@ -77,6 +82,7 @@ class CommandFailureReason(StrEnum):
     SPIN_REQUIRED = "spin_required"
     INVALID_PAYLOAD = "invalid_payload"
     BACKEND_ERROR = "backend_error"
+    ATTESTATION_LOCKED = "attestation_locked"
     UNKNOWN = "unknown"
 
 
@@ -128,6 +134,24 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
         or "entitlement" in body
     ):
         return CommandFailureReason.NOT_ENTITLED
+    # b13 — device-attestation lock (Firebase App Check / Play Integrity).
+    # VW is rolling attestation across its planes in 2026 (it already killed
+    # OLA reads with ``missing-device-token``). An open-source client cannot
+    # produce these Google-signed tokens, so it's a hard wall — but it is NOT
+    # a subscription/entitlement problem, and must not be mislabeled as one
+    # (that sends users chasing a phantom renewal). Keyed on the body marker,
+    # never on a bare 403, so genuine entitlement 403s still classify below.
+    if (
+        "missing-device-token" in body
+        or "missing_device_token" in body
+        or "forbidden device detected" in body
+        or "x-firebase-appcheck" in body
+        or "firebase-appcheck" in body
+        or "appcheck" in body
+        or "play integrity" in body
+        or "play_integrity" in body
+    ):
+        return CommandFailureReason.ATTESTATION_LOCKED
 
     # v1.20.3 — Cariad-BFF wraps real upstream backend issues in
     # fake-404 responses with a specific body marker. User-report

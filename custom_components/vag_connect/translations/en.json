@@ -1066,6 +1066,10 @@
     "supplementary_reauth": {
       "title": "Volkswagen.de read channel needs re-login",
       "description": "The supplementary volkswagen.de read channel couldn't resume its session (Volkswagen wants the email one-time code again). Your vehicle's main data is unaffected. To restore the extra vw.de data, open this integration's options and re-run \"Add a Volkswagen.de read channel\"."
+    },
+    "meb_commands_unavailable": {
+      "title": "Remote commands aren't available for this car ({brand})",
+      "description": "You enabled MBB remote commands when setting up {brand}, but this is an MEB / ID-family car (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB backend doesn't support the durable Car-Net command path — the durable login answered \"Unknown user\" — so lock, climate and charge commands can't be sent.\n\nThe entry was kept **read-only**: vehicle data still flows through the EU Data Act portal, you just won't see command entities. This is a known limitation of VW's MEB platform, not a setup error — you can dismiss this notice."
     }
   },
   "services": {

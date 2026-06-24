@@ -1064,6 +1064,10 @@
     "supplementary_reauth": {
       "title": "Kanał odczytu Volkswagen.de wymaga ponownego logowania",
       "description": "Dodatkowy kanał odczytu volkswagen.de nie mógł wznowić sesji (Volkswagen ponownie prosi o jednorazowy kod e-mail). Główne dane pojazdu pozostają nienaruszone. Otwórz opcje tej integracji i ponownie uruchom „Dodaj kanał odczytu Volkswagen.de”, aby przywrócić dodatkowe dane vw.de."
+    },
+    "meb_commands_unavailable": {
+      "title": "Polecenia zdalne nie są dostępne dla tego samochodu ({brand})",
+      "description": "Podczas konfiguracji {brand} włączono polecenia zdalne MBB, ale to pojazd z rodziny MEB / ID (ID.3/4/5/7, Enyaq, Born, Q4). Backend MEB VW nie obsługuje trwałej ścieżki poleceń Car-Net — trwałe logowanie odpowiedziało „Unknown user” — więc nie można wysyłać poleceń blokady, klimatyzacji ani ładowania.\n\nWpis pozostaje **tylko do odczytu**: dane pojazdu nadal napływają przez portal EU Data Act, po prostu nie zobaczysz encji poleceń. To znane ograniczenie platformy MEB VW, a nie błąd konfiguracji — możesz zamknąć to powiadomienie."
     }
   },
   "services": {

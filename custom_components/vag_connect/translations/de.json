@@ -1066,6 +1066,10 @@
     "supplementary_reauth": {
       "title": "Volkswagen.de-Lesekanal: erneuter Login nötig",
       "description": "Der zusätzliche volkswagen.de-Lesekanal konnte seine Sitzung nicht fortsetzen (Volkswagen verlangt erneut den Einmalcode per E-Mail). Die Hauptdaten deines Fahrzeugs sind nicht betroffen. Öffne die Optionen dieser Integration und führe \"Volkswagen.de-Lesekanal hinzufügen\" erneut aus, um die zusätzlichen vw.de-Daten wiederherzustellen."
+    },
+    "meb_commands_unavailable": {
+      "title": "Fernbefehle sind für dieses Auto nicht verfügbar ({brand})",
+      "description": "Du hast beim Einrichten von {brand} MBB-Fernbefehle aktiviert, aber das ist ein MEB-/ID-Fahrzeug (ID.3/4/5/7, Enyaq, Born, Q4). VWs MEB-Backend unterstützt den durablen Car-Net-Befehlspfad nicht — der durable Login antwortete „Unknown user“ — daher lassen sich Sperren, Klima und Laden nicht senden.\n\nDer Eintrag bleibt **read-only**: Fahrzeugdaten kommen weiter über das EU-Data-Act-Portal, du siehst nur keine Befehls-Entities. Das ist eine bekannte Einschränkung von VWs MEB-Plattform, kein Setup-Fehler — du kannst diesen Hinweis schließen."
     }
   },
   "selector": {

@@ -1064,6 +1064,10 @@
     "supplementary_reauth": {
       "title": "Volkswagen.de-leeskanaal moet opnieuw inloggen",
       "description": "Het aanvullende volkswagen.de-leeskanaal kon zijn sessie niet hervatten (Volkswagen vraagt opnieuw om de eenmalige code per e-mail). De hoofdgegevens van je voertuig zijn niet getroffen. Open de opties van deze integratie en voer \"Volkswagen.de-leeskanaal toevoegen\" opnieuw uit om de extra vw.de-gegevens te herstellen."
+    },
+    "meb_commands_unavailable": {
+      "title": "Opdrachten op afstand zijn niet beschikbaar voor deze auto ({brand})",
+      "description": "Je hebt MBB-opdrachten op afstand ingeschakeld bij het instellen van {brand}, maar dit is een MEB-/ID-auto (ID.3/4/5/7, Enyaq, Born, Q4). De MEB-backend van VW ondersteunt het duurzame Car-Net-opdrachtpad niet — de duurzame login antwoordde \"Unknown user\" — dus vergrendel-, klimaat- en laadopdrachten kunnen niet worden verzonden.\n\nDe vermelding blijft **alleen-lezen**: voertuiggegevens komen nog steeds binnen via het EU Data Act-portaal, je ziet alleen geen opdracht-entiteiten. Dit is een bekende beperking van VW's MEB-platform, geen instelfout — je kunt deze melding sluiten."
     }
   },
   "services": {

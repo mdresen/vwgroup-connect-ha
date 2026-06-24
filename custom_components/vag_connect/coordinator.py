@@ -30,6 +30,7 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
     CONF_MBB_COMMAND_CHANNEL,
+    CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_PASSWORD,
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
@@ -639,6 +640,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 "VAG Connect portal-safety: restored %d cached vehicle(s) "
                 "for %s", len(self.vehicles), brand,
+            )
+
+        # b13 — MEB/ID known-limitation. Setup flags an entry when the user
+        # asked for MBB commands but the car is MEB-ineligible (the portal
+        # entry was created read-only). Surface a clear repair so it's a known
+        # limit, not a silent missing-command-entities failure.
+        if self.entry.data.get(CONF_MEB_COMMANDS_UNAVAILABLE):
+            from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                f"meb_commands_unavailable_{self.entry.entry_id}",
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="meb_commands_unavailable",
+                translation_placeholders={"brand": self.entry.data.get(CONF_BRAND, "")},
             )
 
         # v2.7.0 — config_flow's browser-login (DAG) flow stashes the
@@ -1960,6 +1978,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         elif reason in (
             CommandFailureReason.SUBSCRIPTION_EXPIRED,
             CommandFailureReason.NOT_ENTITLED,
+            # b13 — attestation lock is a backend-access denial, not a vehicle
+            # capability gap: keep the entity (reads continue) and re-probe in
+            # 24h in case VW rolls it back, like an entitlement wall.
+            CommandFailureReason.ATTESTATION_LOCKED,
         ):
             state.entitled_by_account = False
             state.retry_after = retry_at

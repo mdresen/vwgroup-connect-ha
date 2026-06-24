@@ -23,6 +23,7 @@ CONF_MBB_VINS                 = "mbb_vins"
 CONF_MBB_COMMAND_CHANNEL      = "mbb_command_channel"      # bool: armed?
 CONF_MBB_COMMAND_TOKENS       = "mbb_command_tokens"       # dag-shaped dict (strategy=mbb)
 CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client-Id
+CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_FORCE_ACCESS             = "force_enable_access"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"

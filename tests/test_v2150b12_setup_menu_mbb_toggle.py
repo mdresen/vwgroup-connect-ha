@@ -17,6 +17,7 @@ from custom_components.vag_connect.const import (
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MBB_COMMAND_CLIENT_ID,
     CONF_MBB_COMMAND_TOKENS,
+    CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
     DEFAULT_SCAN_INTERVAL,
@@ -140,3 +141,4 @@ def test_finish_meb_ineligible_keeps_portal_without_commands() -> None:
     asyncio.run(flow.async_step_browser_login_finish())
     data = flow.async_create_entry.call_args.kwargs["data"]
     assert CONF_MBB_COMMAND_CHANNEL not in data  # reads still work, no commands
+    assert data[CONF_MEB_COMMANDS_UNAVAILABLE] is True  # b13: flagged for the repair

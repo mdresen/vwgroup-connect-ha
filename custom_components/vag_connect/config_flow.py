@@ -45,6 +45,7 @@ from .const import (
     CONF_FORCE_ACCESS,
     CONF_FORCE_PPE_CLIMATE,
     CONF_MBB_COMMAND_CHANNEL,
+    CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_MBB_COMMAND_CLIENT_ID,
     CONF_MBB_COMMAND_TOKENS,
     CONF_MBB_VINS,
@@ -925,9 +926,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     # entry, an MBB-ineligible (MEB/ID) car must NOT lose the
                     # portal reads: create the portal entry without commands.
                     if self._dag_mbb_command and self._pending_portal_data:
+                        # b13 — flag the read-only fallback so the coordinator
+                        # raises a clear "commands unavailable on this MEB/ID
+                        # car" repair instead of silently missing the command
+                        # entities the user ticked the box for.
                         return self.async_create_entry(
                             title=self._pending_portal_title,
-                            data=self._pending_portal_data,
+                            data={**self._pending_portal_data,
+                                  CONF_MEB_COMMANDS_UNAVAILABLE: True},
                         )
                     return self.async_abort(reason="mbb_not_eligible")
                 # Poll/mint completed with error — reset state and route
@@ -1199,6 +1205,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     "strategy": "mbb",
                 }
                 entry_data[CONF_MBB_COMMAND_CLIENT_ID] = self._dag_mbb_client_id
+            else:
+                # b13 — commands requested but the MBB bearer never minted
+                # (MEB/ID car): keep the read-only portal entry and flag it so
+                # the coordinator surfaces a clear "commands unavailable" repair.
+                entry_data[CONF_MEB_COMMANDS_UNAVAILABLE] = True
             return self.async_create_entry(
                 title=self._pending_portal_title, data=entry_data,
             )
