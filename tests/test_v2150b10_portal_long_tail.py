@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from custom_components.vag_connect.cariad.auth import eu_data_dictionary as _dd
 from custom_components.vag_connect.cariad.auth._eu_data_act import (
-    _is_noise,
     map_dataset_to_vehicle_data,
 )
 from custom_components.vag_connect.cariad.models import VehicleData
@@ -140,25 +139,17 @@ def test_remaining_times() -> None:
     assert d.remaining_charge_time_min == 12
 
 
-# ── Scout noise suppression ──────────────────────────────────────────────────
+# ── b14: NO suppression — every unmapped field surfaces in the Scout ─────────
 
-def test_is_noise_matches_bare_and_dotted() -> None:
-    assert _is_noise("echo")
-    assert _is_noise("user_id")
-    assert _is_noise("Data.key")           # dotted tail
-    assert _is_noise("vin")
-    assert not _is_noise("parking_brake")  # a real signal
-    assert not _is_noise("locked_state_tailgate")
-
-def test_noise_excluded_from_raw_unmapped() -> None:
+def test_nothing_is_suppressed_from_raw_unmapped() -> None:
+    # Policy: never hide Scout/raw fields. Anything not mapped this poll — even
+    # plumbing/metadata — must still appear so it can be learned + mapped later.
     d = _map({
-        "echo": "echo", "key": "abc", "Data.key": "xyz", "vin": "WVW...",
-        "user_id": "sha256:x", "timestampUtc": "2026-06-22T18:20:30Z",
-        "some_brand_new_field": "42",  # a genuine unmapped signal
+        "echo": "echo", "key": "abc", "message_id": "m1",
+        "some_brand_new_field": "42",
     })
-    assert "some_brand_new_field" in d.raw_unmapped_fields
-    for noise in ("echo", "key", "Data.key", "vin", "user_id", "timestampUtc"):
-        assert noise not in d.raw_unmapped_fields
+    for k in ("echo", "key", "message_id", "some_brand_new_field"):
+        assert k in d.raw_unmapped_fields
 
 
 # ── dictionary name index (fixes the #500 "Spec field" column) ────────────────

@@ -46,10 +46,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **The setup login is now two clear paths.** "Browser-Login (QR)" for Audi / Škoda / SEAT / CUPRA (passwordless, two-way native), and "Portal (E-Mail + Passwort)" for Volkswagen EU / Porsche. The standalone "MBB durable login" and "Volkswagen.de" menu entries are gone — MBB is now a toggle on the Portal path, and vw.de stays an options-only extra read channel.
 - **MBB remote commands on a Volkswagen portal entry.** On the Portal login you can tick "Enable MBB remote commands"; after the email/password sign-in it adds one QR confirm and arms a durable-MBB command channel **alongside** the portal. Result on one device: reads come from the EU Data Act portal, and lock / climate / charge / target-SoC / window-heating commands go through MBB. The MBB bearer refreshes itself (survives restarts). If the car turns out to be MBB-ineligible (newer ID/MEB), the portal entry is still created — you just get reads without commands, instead of the whole setup failing.
+- **Portal-safety: your recorded values now survive an outage *and* a restart.** The integration keeps a small local cache of each car's last-known telemetry. When a poll comes back empty or partial — a common thing on the EU Data Act portal — it no longer blanks the fields it didn't get this time: SoC, odometer, range, fuel, service intervals and the like stay visible at their last recorded value until real new data arrives. That cache is now written to disk, so after a Home Assistant restart your dashboard shows the recorded values immediately instead of "unknown" until the first poll finishes. Volatile states (locks, charging, doors) are deliberately *not* carried forward — a stale "unlocked" would be misleading — so those still reflect the latest poll.
+- **A backwards odometer reading is rejected.** The portal occasionally serves a stale or zero mileage, so the "km" sensor would jump down and then back up. It now keeps the recorded value whenever a fresh reading is lower than what we already have, so the odometer only ever moves forward.
 
 ### Changed
 
 - A Volkswagen portal entry that has the MBB command channel armed is no longer forced read-only — its command entities (lock/switch/climate/buttons) now appear. A portal entry without the command channel stays read-only as before.
+- **The Vehicle Data Scout no longer hides any fields.** b10 had started filtering "plumbing" fields (request ids, envelope timestamps, and the like) out of the Scout report — that was the wrong call, because it also hid things worth mapping. The Scout now surfaces *everything* the portal sends, so nothing gets quietly dropped before it can be turned into a real sensor.
 
 ## [2.15.0b12] - 2026-06-23
 

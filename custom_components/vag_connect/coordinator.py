@@ -607,6 +607,40 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._token_storage = TokenStorage(store)
         persisted = await self._token_storage.load()
 
+        # b13 — Portal-safety: restore the last-known-good vehicle snapshot so
+        # entities show their recorded values immediately on restart (not
+        # "unknown" until the first poll completes), and a first-poll outage
+        # still has a cache to fall back to. Best-effort; never blocks setup.
+        from homeassistant.helpers.json import JSONEncoder  # noqa: PLC0415
+        from .cariad.vehicle_cache import (  # noqa: PLC0415
+            VEHICLE_CACHE_VERSION,
+            vehicle_cache_key,
+        )
+        self._vehicle_store: Store[dict[str, Any]] = Store(
+            self.hass,
+            VEHICLE_CACHE_VERSION,
+            vehicle_cache_key(self.entry.entry_id),
+            encoder=JSONEncoder,
+        )
+        try:
+            cached = await self._vehicle_store.async_load()
+        except Exception:  # noqa: BLE001
+            cached = None
+        if cached and isinstance(cached.get("vehicles"), dict):
+            with self._vehicles_lock:
+                for vin, vdata in cached["vehicles"].items():
+                    if vin == "_meta" or vin in self.vehicles:
+                        continue
+                    if isinstance(vdata, dict):
+                        restored = dict(vdata)
+                        restored["_restored"] = True
+                        restored["_poll_failed"] = False
+                        self.vehicles[vin] = restored
+            _LOGGER.debug(
+                "VAG Connect portal-safety: restored %d cached vehicle(s) "
+                "for %s", len(self.vehicles), brand,
+            )
+
         # v2.7.0 — config_flow's browser-login (DAG) flow stashes the
         # initial tokens in entry.data["dag_initial_tokens"] because
         # the persistent storage hadn't been set up yet at that point.
@@ -1408,6 +1442,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             except Exception:  # noqa: BLE001
                                 pass
                             continue
+                        # b13 — Portal-safety: reconcile the fresh poll over
+                        # the last-known-good snapshot — carry cumulative
+                        # telemetry (SoC/odometer/range/…) forward when this
+                        # poll omitted it, and reject a backwards odometer —
+                        # so a partial portal payload never blanks a field and
+                        # a glitched "km" reading never jumps down.
+                        from .cariad.vehicle_cache import reconcile  # noqa: PLC0415
+                        enriched, _discrepancies = reconcile(
+                            self.vehicles.get(vin), enriched
+                        )
+                        if _discrepancies:
+                            _LOGGER.debug(
+                                "VAG Connect portal-safety %s: %s",
+                                mask_vin(vin), "; ".join(_discrepancies),
+                            )
                         fresh[vin] = enriched
                         any_success = True
                         self.vehicle_success[vin] = True
@@ -1441,6 +1490,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         )
                 with self._vehicles_lock:
                     self.vehicles.update(fresh)
+                # b13 — Portal-safety: persist the merged snapshot (debounced)
+                # so the recorded values survive a HA restart. Best-effort.
+                try:
+                    self._save_vehicle_cache()
+                except Exception:  # noqa: BLE001
+                    pass
                 # v1.9.0 — Refresh the two reporter repair issues. Cheap to
                 # call: ``ensure_*_issue`` deletes when empty and updates
                 # in-place when the IDs already exist.
@@ -3071,6 +3126,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         }
         self._geocode_cache[cache_key] = result
         return result
+
+    def _save_vehicle_cache(self) -> None:
+        """Persist the last-known-good vehicle snapshot (debounced 30s).
+
+        Portal-safety: strips runtime-only keys and writes the recorded values
+        to ``.storage`` so they survive a Home Assistant restart. Scheduled via
+        ``async_delay_save`` so it never blocks the poll.
+        """
+        store = getattr(self, "_vehicle_store", None)
+        if store is None:
+            return
+
+        def _snapshot() -> dict[str, Any]:
+            from .cariad.vehicle_cache import strip_runtime  # noqa: PLC0415
+            with self._vehicles_lock:
+                vehicles = {
+                    vin: strip_runtime(v)
+                    for vin, v in self.vehicles.items()
+                    if vin != "_meta" and isinstance(v, dict)
+                }
+            return {
+                "saved_at": datetime.now(tz=timezone.utc).isoformat(),
+                "vehicles": vehicles,
+            }
+
+        store.async_delay_save(_snapshot, 30)
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Manual refresh — fetches fresh status for all known VINs."""

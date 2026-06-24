@@ -497,24 +497,9 @@ def _shorten_enum(value: str | None) -> str | None:
 # so a pathological payload can't bloat the recorder / state machine.
 _RAW_FIELD_CAP = 250
 
-# b10 — pure plumbing / PII / envelope fields that are never vehicle telemetry.
-# Suppressed from the Scout + raw-discovery so the report shows only real signals
-# (the portal nests some under a path, e.g. ``Data.key`` → match the bare tail).
-_SCOUT_SKIP_FIELDS: frozenset[str] = frozenset({
-    "echo",                      # constant marker, value == "echo"
-    "key",                       # per-poll request id
-    "user_id",                   # hashed account id (PII) — never an entity
-    "vin",                       # identity, already the device key
-    "timestampUtc",              # envelope timestamp; freshness handled elsewhere
-    "fuel_level__accuracy",      # measurement-quality flag, not a reading
-    "window_heating_error_code", # non-customer-facing error code
-})
-
-
-def _is_noise(name: str) -> bool:
-    """True for plumbing/PII/envelope field names that should not reach the
-    Scout — matched on the bare key and on a dotted path's trailing segment."""
-    return name in _SCOUT_SKIP_FIELDS or name.rsplit(".", 1)[-1] in _SCOUT_SKIP_FIELDS
+# b14 — NO field suppression. Policy (Prash): never hide Scout/raw fields; every
+# portal field is surfaced so it can be mapped. (The b10 ``_SCOUT_SKIP_FIELDS`` /
+# ``_is_noise`` filter was removed — we map everything, we don't suppress.)
 
 
 def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> VehicleData:
@@ -812,7 +797,7 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     # Debug-only, zero behaviour change. Feeds the Vehicle Data Scout and tells
     # us exactly which dictionary entries to add next, from REAL payloads —
     # beats a hand-maintained static dict that silently drops unknown fields.
-    unmapped = sorted(k for k in fields if k not in used and not _is_noise(k))
+    unmapped = sorted(k for k in fields if k not in used)
     if unmapped:
         _LOGGER.debug(
             "EU Data Act: %d unmapped portal field(s): %s",
