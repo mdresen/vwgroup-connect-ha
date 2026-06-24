@@ -1068,7 +1068,13 @@ class VWEUClient(CariadBaseClient):
         """
         if self._brand.name == "audi":
             return "myAudi", "4.24.0"
-        return "Volkswagen", "3.51.1"
+        # b13 (#503 dismantle / H5) — bumped to the live We Connect version.
+        # Verified against the dismantled com.volkswagen.weconnect APK
+        # (versionName 3.63.2, androguard 2026-06). A fidelity check on the
+        # fs-car endpoints rejects stale versions, so tracking the current
+        # build hardens the command path; this is the value the App-Atlas
+        # refresh unblocked.
+        return "Volkswagen", "3.63.2"
 
     def _mbb_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         app_name, app_version = self._mbb_app_identity()
