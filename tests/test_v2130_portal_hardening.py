@@ -32,12 +32,17 @@ def test_walk_fields_latest_wins_by_timestamp() -> None:
     assert _walk_fields(log)["soc"] == "82"  # newest timestamp wins
 
 
-def test_walk_fields_no_timestamp_falls_back_to_last() -> None:
+def test_walk_fields_no_real_timestamp_keeps_first_seen() -> None:
+    # b13 (#465): when duplicate same-name points carry NO genuine per-point
+    # timestamp (only the shared dataset floor / none), the picker must be
+    # deterministic and keep the FIRST-seen entry — NOT let the last array
+    # entry clobber it. The old "last-in-array" fallback is what let a stale
+    # duplicate (80%) override the correct value on the ID.5.
     log = {"data": [
         {"dataFieldName": "x", "value": "1"},
         {"dataFieldName": "x", "value": "9"},
     ]}
-    assert _walk_fields(log)["x"] == "9"  # last-in-array, not first
+    assert _walk_fields(log)["x"] == "1"  # first-seen on a true (no-real-ts) tie
 
 
 def test_walk_fields_datapoint_shape_unchanged() -> None:

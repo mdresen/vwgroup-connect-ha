@@ -54,6 +54,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - A Volkswagen portal entry that has the MBB command channel armed is no longer forced read-only — its command entities (lock/switch/climate/buttons) now appear. A portal entry without the command channel stays read-only as before.
 - **The Vehicle Data Scout no longer hides any fields.** b10 had started filtering "plumbing" fields (request ids, envelope timestamps, and the like) out of the Scout report — that was the wrong call, because it also hid things worth mapping. The Scout now surfaces *everything* the portal sends, so nothing gets quietly dropped before it can be turned into a real sensor.
 
+### Fixed
+
+- **Volkswagen US / Canada login was broken (#503).** A v2.11.0 change widened the North-America OAuth scope from `openid` to `openid profile cars vin` based on a source-read that was never live-tested against the NA backend — and it silently regressed sign-in: the authorize redirect stopped returning a code, so login failed with a misleading "email or password wrong". Reverted to bare `openid`, which is **confirmed against the live MyVW app** (the dismantled APK carries `openid` as its only OAuth scope; the wider chain appears nowhere) and matches the value an NA tester verified in #269. (Canada keeps its own app client-id, which the APK confirms is genuine — it wasn't the cause.)
+- **Wrong value shown when VW sends duplicate data points (#465).** The EU Data Act portal sometimes returns several data points with the *same* name (e.g. multiple SoC or target-SoC candidates). We were resolving ties by array order, so a stale duplicate could win — one reporter's ID.5 showed 80% SoC while the car and app showed 90%. Now duplicates are resolved by each point's own capture time (a genuine timestamp beats the shared dataset floor; the newer of two real timestamps wins; with neither, the first is kept deterministically), and a field nested inside an array (like a charge profile) no longer collapses onto the active top-level value.
+
 ## [2.15.0b12] - 2026-06-23
 
 > **Beta / pre-release** — the EU Data Act portal as a *supplementary* read channel now actually delivers data (e.g. portal reads alongside MBB commands).

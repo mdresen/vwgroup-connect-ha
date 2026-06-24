@@ -38,17 +38,22 @@ BRAND_VW_NA = BrandConfig(
     redirect_uri="kombi:///login",
     user_agent="MyVW/1.0 Android",
     api_base="https://b-h-s.spr.us00.p.con-veh.net",
-    # v2.11.0 (zackcornelius source-verified) - scope must be
-    # "openid profile cars vin", not bare "openid". The NA IDP
-    # returns reduced consent + missing claims when only "openid"
-    # is requested.
-    scope="openid profile cars vin",
+    # b13 (#503) — scope MUST stay bare "openid". APK-CONFIRMED: dismantling
+    # the live MyVW app (com.vw.carnet.release) shows the only OAuth scope
+    # literal in the DEX is bare "openid" — "openid profile cars vin" appears
+    # nowhere (not as literal, not url-encoded). v2.3.0 (#269) also live-
+    # confirmed it: NA tester roberttco hit HTTP 400 with the wider chain.
+    # v2.11.0 re-widened it from a source-read (never live-tested against NA)
+    # and silently regressed login → the authorize redirect never lands a
+    # code → "Legacy: no code in: identity.na.vwgroup.io/signin-service".
+    scope="openid",
 )
 
-# v2.11.0 (zackcornelius source-verified) - Canada needs its own
-# OAuth client_id. matpoulin's old shared client_id worked for some
-# accounts but the NA IDP rejects CA accounts that authenticate with
-# the US client_id on newer firmware revisions.
+# b13 (#503) — CA uses its own MYVW client_id. APK-CONFIRMED real: the live
+# MyVW DEX carries this exact id (alongside the US 59992128 and 5 others), so
+# it is a genuine app client, not an invented value. It is NOT the #503 cause
+# — a wrong client_id yields "invalid_client", whereas the observed "no code"
+# is a scope/consent symptom (fixed by the scope revert above). Kept as-is.
 _CA_CLIENT_ID = "69eb3c39-d2be-4006-8197-37cc4971e8fe_MYVW_ANDROID"
 
 # v2.3.0 (#269) — VW NA-specific IDP host: identity.na.vwgroup.io
@@ -82,7 +87,9 @@ class VWNAClient:
         self._base     = _COUNTRY_BASES.get(self._country, _COUNTRY_BASES["us"])
         self._tokens: TokenSet | None = None
         # VW NA uses IDK auth but against a country-specific endpoint.
-        # v2.11.0 - CA gets the dedicated CA client_id per zackcornelius.
+        # b13 (#503) — CA keeps its own APK-confirmed client_id; US uses the
+        # shared one. The #503 regression was the scope (reverted above), not
+        # this id.
         client_id = (
             _CA_CLIENT_ID if self._country == "ca" else BRAND_VW_NA.client_id
         )

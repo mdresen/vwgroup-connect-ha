@@ -385,17 +385,28 @@ def _walk_fields(payload: Any) -> dict[str, str]:
     v2.13.0 (P1) — LATEST-WINS. The portal ships an unordered event-log, so
     the same field can appear at several timestamps; the old first-wins
     ``setdefault`` picked an arbitrary (often oldest) value, which is why SoC /
-    odometer jumped around for everyone on the portal. We now keep, per field,
-    the candidate with the highest parsed timestamp (read from a sibling
-    ``_TS_KEYS`` key on the same node); ties / missing timestamps fall back to
-    last-in-array (still better than first). Single-occurrence datasets are
+    odometer jumped around for everyone on the portal. We keep, per field, the
+    candidate with the freshest *genuine* per-point timestamp (read from a
+    sibling ``_TS_KEYS`` key on the same node).
+
+    b13 (#465 RaAdNe): VW returns several data points with the SAME logical
+    name (e.g. four ``target_soc`` candidates, two ``soc`` values) and we were
+    picking by array order whenever they shared the dataset-level floor
+    timestamp — so the wrong one (a stale 80% over the live 90%) could win. Now
+    the tie-break tracks whether a timestamp is a REAL per-point value or just
+    the inherited dataset floor: a real ts beats the floor/unknown, the
+    strictly-newer of two real ts wins, and with no real ts on either we keep
+    the first-seen entry instead of letting the last array entry clobber it.
+    Fields nested inside an array (e.g. inside ``chargingProfiles[]``) no longer
+    collapse onto the bare top-level key. Single-occurrence datasets are
     unaffected, so existing shape tests stay green.
     """
-    # name -> (value_str, ts) where ts is float (-inf when unknown)
-    best: dict[str, tuple[str, float]] = {}
+    # name -> (value_str, ts, ts_real); ts_real distinguishes a genuine
+    # per-point timestamp from the inherited dataset-level floor (-inf=unknown).
+    best: dict[str, tuple[str, float, bool]] = {}
     dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
 
-    def add(name: Any, value: Any, ts: float | None) -> None:
+    def add(name: Any, value: Any, ts: float | None, ts_real: bool) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
         if not isinstance(value, (str, int, float, bool)):
@@ -404,45 +415,61 @@ def _walk_fields(payload: Any) -> dict[str, str]:
             _LOGGER.debug("EU Data Act: dropped sentinel %s=%s", name, value)
             return
         cand = ts if ts is not None else float("-inf")
+        cand_real = ts_real and ts is not None
         prev = best.get(name)
         if prev is None:
-            best[name] = (str(value), cand)
+            best[name] = (str(value), cand, cand_real)
             return
         if _is_monotonic(name):  # a11: odometer/mileage must never regress
             new_n, old_n = _num(value), _num(prev[0])
             if new_n is not None and old_n is not None:
                 if new_n >= old_n:
-                    best[name] = (str(value), max(cand, prev[1]))
+                    best[name] = (str(value), max(cand, prev[1]), cand_real or prev[2])
                 return
-        # latest-wins; >= so a later array entry replaces an equal/unknown ts.
-        if cand >= prev[1]:
-            best[name] = (str(value), cand)
+        # b13 (#465): pick by REAL freshness, never by array order.
+        prev_real = prev[2]
+        if cand_real and prev_real:
+            if cand > prev[1]:  # strictly-newer real timestamp wins
+                best[name] = (str(value), cand, True)
+        elif cand_real and not prev_real:
+            best[name] = (str(value), cand, True)  # real beats floor/unknown
+        # else: incumbent is real, or both unknown → keep the first-seen entry.
 
-    def walk(node: Any, prefix: str = "", node_ts: float | None = None) -> None:
+    def walk(
+        node: Any,
+        prefix: str = "",
+        node_ts: float | None = None,
+        node_ts_real: bool = False,
+        in_array: bool = False,
+    ) -> None:
         if isinstance(node, dict):
-            ts = node_ts
+            ts, ts_real = node_ts, node_ts_real
             for tk in _TS_KEYS:
                 if tk in node:
                     parsed = _parse_ts(node[tk])
                     if parsed is not None:
-                        ts = parsed
+                        ts, ts_real = parsed, True  # genuine per-point timestamp
                         break
             # data-point shape: {dataFieldName|name: X, value: Y}
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
-                add(fname, node.get("value"), ts)
+                add(fname, node.get("value"), ts, ts_real)
             for k, val in node.items():
                 if k in ("dataFieldName", "name", "value"):
                     continue
                 key = f"{prefix}.{k}" if prefix else str(k)
                 if isinstance(val, (str, int, float, bool)):
-                    add(key, val, ts)
-                    add(str(k), val, ts)
+                    add(key, val, ts, ts_real)
+                    # b13 (#465): only emit the BARE name outside an array — a
+                    # field inside e.g. chargingProfiles[] must not collapse
+                    # onto the top-level key and clobber the active value.
+                    if not in_array:
+                        add(str(k), val, ts, ts_real)
                 else:
-                    walk(val, key, ts)
+                    walk(val, key, ts, ts_real, in_array)
         elif isinstance(node, list):
             for item in node:
-                walk(item, prefix, node_ts)
+                walk(item, prefix, node_ts, node_ts_real, in_array=True)
 
     walk(payload, node_ts=dataset_ts)  # a11: bare fields inherit dataset freshness
     return {k: v[0] for k, v in best.items()}
