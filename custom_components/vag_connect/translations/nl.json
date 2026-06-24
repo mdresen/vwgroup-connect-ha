@@ -89,7 +89,8 @@
           "password": "Password",
           "spin": "S-PIN",
           "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status"
+          "force_enable_access": "Force Door Status",
+          "enable_mbb_commands": "MBB-afstandsbediening inschakelen (alleen Volkswagen — extra QR-bevestiging)"
         },
         "data_description": {
           "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",

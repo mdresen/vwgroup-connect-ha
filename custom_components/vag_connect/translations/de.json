@@ -40,7 +40,8 @@
           "password": "Passwort",
           "spin": "S-PIN (optional, für Türverriegelung)",
           "scan_interval": "Aktualisierungsintervall (Minuten)",
-          "force_enable_access": "Türzustand erzwingen (für ältere Modelle)"
+          "force_enable_access": "Türzustand erzwingen (für ältere Modelle)",
+          "enable_mbb_commands": "MBB-Fernbefehle aktivieren (nur Volkswagen — zusätzlicher QR-Login)"
         },
         "data_description": {
           "spin": "Wird für Türverriegelung und einige andere Aktionen benötigt. Kann leer gelassen werden.",

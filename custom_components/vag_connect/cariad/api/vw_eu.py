@@ -526,6 +526,49 @@ class VWEUClient(CariadBaseClient):
 
         return d
 
+    def _mbb_command_target(self) -> "VWEUClient | None":
+        """b12 — which connector runs MBB commands. On an MBB-PRIMARY entry
+        that's ``self`` (behaviour unchanged). On a read-only primary (EU Data
+        Act portal) with an armed MBB command channel it's that second
+        connector. None → no MBB path (falls through to the BFF, as before)."""
+        if self._tokens and self._tokens.strategy == "mbb":
+            return self
+        return getattr(self, "_mbb_command", None)
+
+    async def arm_mbb_command_channel(
+        self, tokens: Any, client_id: str, vins: list[str], spin: str = "",
+    ) -> bool:
+        """b12 — arm a durable-MBB command connector ALONGSIDE this (read-only
+        primary) client: commands route through MBB while reads stay on the
+        primary. Builds a second VWEUClient on the shared session (MBB = bearer,
+        no IDP-cookie clobber). Fail-soft → False leaves the slot None and the
+        primary unaffected. Skipped if THIS client is already MBB-primary."""
+        if not tokens or not getattr(tokens, "access_token", ""):
+            return False
+        if self._tokens and self._tokens.strategy == "mbb":
+            return False
+        try:
+            # VWEUClient is hardcoded to VW EU (MBB is VW-only); no brand kwarg.
+            cmd = VWEUClient(
+                self._session, self._email, self._password, spin or self._spin,
+            )
+            cmd.set_persisted_tokens(tokens)
+            cmd._mbb_client_id = client_id or ""
+            cmd._mbb_manual_vins = list(vins or [])
+            self._mbb_command = cmd
+            _LOGGER.info(
+                "VAG Connect: MBB command channel armed alongside the"
+                " read-only primary (commands → MBB, reads → primary)."
+            )
+            return True
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: could not arm MBB command channel (%s) —"
+                " primary unaffected.", type(err).__name__,
+            )
+            self._mbb_command = None
+            return False
+
     async def command_lock(self, vin: str, spin: str = "") -> None:
         """Lock vehicle — combined endpoint with separate-endpoint fallback,
         each tried on both /vehicle/v1/ and /vehicle/v2/ paths.
@@ -545,8 +588,9 @@ class VWEUClient(CariadBaseClient):
         """
         # v2.15.0 — durable MBB strategy uses the classic Car-Net RLU flow
         # (3-leg S-PIN secure-token handshake + lock action), NOT the BFF.
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_rlu_mbb(vin, spin=spin, lock=True)
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_rlu_mbb(vin, spin=spin, lock=True)
             return
         primary_payload: dict[str, Any] = {"action": "lock"}
         fallback_payload: dict[str, Any] = {}
@@ -571,8 +615,9 @@ class VWEUClient(CariadBaseClient):
         SecToken-using SEAT/CUPRA flow does in v1.8.4).
         """
         # v2.15.0 — durable MBB strategy uses the classic Car-Net RLU flow.
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_rlu_mbb(vin, spin=spin, lock=False)
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_rlu_mbb(vin, spin=spin, lock=False)
             return
         primary_payload: dict[str, Any] = {"action": "unlock"}
         fallback_payload: dict[str, Any] = {}
@@ -608,8 +653,9 @@ class VWEUClient(CariadBaseClient):
         unreliable). ️ [Inference] — body shape verified from upstream
         PRs but Audi never published a definitive PPE compatibility list.
         """
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_mbb_op(vin, "climate_start")
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "climate_start")
             return
         if ppe_mode:
             fallback_payload = {
@@ -689,8 +735,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_climate(self, vin: str) -> None:
         """Stop pre-conditioning — combined endpoint with separate fallback."""
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_mbb_op(vin, "climate_stop")
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "climate_stop")
             return
         await self._post_command_with_fallback_paths(
             vin,
@@ -702,8 +749,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_start_charging(self, vin: str) -> None:
         """Start charging — combined endpoint with separate fallback."""
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_mbb_op(vin, "charge_start")
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "charge_start")
             return
         await self._post_command_with_fallback_paths(
             vin,
@@ -715,8 +763,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_charging(self, vin: str) -> None:
         """Stop charging — combined endpoint with separate fallback."""
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_mbb_op(vin, "charge_stop")
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "charge_stop")
             return
         await self._post_command_with_fallback_paths(
             vin,
@@ -774,8 +823,9 @@ class VWEUClient(CariadBaseClient):
         # straight to the MBB wake (which uses the MBB-headered poster), so
         # the bearer never leaks to the dead BFF host. Mirrors the gates on
         # get_status / command_lock / command_unlock.
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_wake_mbb(vin)
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_wake_mbb(vin)
             return
 
         # v2.1.0 — ``_home_region_cache`` is now eager-init in __init__
@@ -1735,9 +1785,10 @@ class VWEUClient(CariadBaseClient):
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
         """Set charge target SoC. Tries v1 first, falls back to v2 on 404."""
-        if self._tokens and self._tokens.strategy == "mbb":
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
             from .._mbb import build_mbb_charger_settings_body  # noqa: PLC0415
-            await self._command_mbb_op(
+            await _tgt._command_mbb_op(
                 vin, "charge_target_soc",
                 body_override=build_mbb_charger_settings_body(target))
             return
@@ -1793,8 +1844,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_start_window_heating(self, vin: str) -> None:
         """Start window heating (front windscreen + rear window)."""
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_mbb_op(vin, "window_heat_start")
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "window_heat_start")
             return
         await self._post(
             f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
@@ -1803,8 +1855,9 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_window_heating(self, vin: str) -> None:
         """Stop window heating."""
-        if self._tokens and self._tokens.strategy == "mbb":
-            await self._command_mbb_op(vin, "window_heat_stop")
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "window_heat_stop")
             return
         await self._post(
             f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",

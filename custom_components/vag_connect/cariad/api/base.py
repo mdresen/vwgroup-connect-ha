@@ -160,6 +160,11 @@ class CariadBaseClient:
         # a non-portal primary (MBB = bearer) holds no IDP cookies to clobber.
         self._supplementary_eu_portal: Any = None
         self._supplementary_eu_portal_creds: Any = None
+        # b12 — MBB COMMAND CHANNEL: a second, MBB-primary-configured client held
+        # alongside a read-only primary (portal) so commands route through MBB
+        # while reads stay on the portal. None unless armed. Shares this client's
+        # session (MBB = bearer, no IDP cookies to clobber).
+        self._mbb_command: Any = None
         # When the website-authproxy login surfaces an email-OTP challenge,
         # the code the user enters in the config flow is handed to the
         # connector via this field before authenticate() runs.
@@ -669,6 +674,8 @@ class CariadBaseClient:
         # the portal supplementary shares the client session (no own session to
         # close) — just drop the connector reference.
         self._supplementary_eu_portal = None
+        # b12 — the MBB command channel shares this client's session too; drop it.
+        self._mbb_command = None
         if sess is not None:
             try:
                 await sess.close()

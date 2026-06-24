@@ -38,6 +38,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b13] - 2026-06-24
+
+> **Beta / pre-release** — one car, reads *and* commands: the EU Data Act portal for data + a durable-MBB command channel on top. And a simpler 2-path setup.
+
+### Added
+
+- **The setup login is now two clear paths.** "Browser-Login (QR)" for Audi / Škoda / SEAT / CUPRA (passwordless, two-way native), and "Portal (E-Mail + Passwort)" for Volkswagen EU / Porsche. The standalone "MBB durable login" and "Volkswagen.de" menu entries are gone — MBB is now a toggle on the Portal path, and vw.de stays an options-only extra read channel.
+- **MBB remote commands on a Volkswagen portal entry.** On the Portal login you can tick "Enable MBB remote commands"; after the email/password sign-in it adds one QR confirm and arms a durable-MBB command channel **alongside** the portal. Result on one device: reads come from the EU Data Act portal, and lock / climate / charge / target-SoC / window-heating commands go through MBB. The MBB bearer refreshes itself (survives restarts). If the car turns out to be MBB-ineligible (newer ID/MEB), the portal entry is still created — you just get reads without commands, instead of the whole setup failing.
+
+### Changed
+
+- A Volkswagen portal entry that has the MBB command channel armed is no longer forced read-only — its command entities (lock/switch/climate/buttons) now appear. A portal entry without the command channel stays read-only as before.
+
 ## [2.15.0b12] - 2026-06-23
 
 > **Beta / pre-release** — the EU Data Act portal as a *supplementary* read channel now actually delivers data (e.g. portal reads alongside MBB commands).

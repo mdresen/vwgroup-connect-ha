@@ -15,6 +15,14 @@ CONF_SPIN                     = "spin"
 # directly. Comma/space-separated for multiple cars. Vehicle-level reads +
 # commands (VSR / rlu) work fine with the fal token.
 CONF_MBB_VINS                 = "mbb_vins"
+# b12 — MBB COMMAND CHANNEL layered on a read-only primary (e.g. EU Data Act
+# portal for reads). The portal can't command; this arms a durable-MBB
+# connector ALONGSIDE it so lock/climate/charge route through MBB while reads
+# stay on the portal. Stored separately from the primary's dag_initial_tokens
+# so the portal primary is untouched.
+CONF_MBB_COMMAND_CHANNEL      = "mbb_command_channel"      # bool: armed?
+CONF_MBB_COMMAND_TOKENS       = "mbb_command_tokens"       # dag-shaped dict (strategy=mbb)
+CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client-Id
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_FORCE_ACCESS             = "force_enable_access"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"

@@ -44,6 +44,9 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_ACCESS,
     CONF_FORCE_PPE_CLIMATE,
+    CONF_MBB_COMMAND_CHANNEL,
+    CONF_MBB_COMMAND_CLIENT_ID,
+    CONF_MBB_COMMAND_TOKENS,
     CONF_MBB_VINS,
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
@@ -233,6 +236,7 @@ def _credentials_schema(
     scan_interval: int = DEFAULT_SCAN_INTERVAL,
     spin: str = "",
     force_access: bool = False,
+    enable_mbb_commands: bool = False,
 ) -> vol.Schema:
     """Credentials + advanced settings schema with proper selectors."""
     schema: dict[vol.Marker, Any] = {
@@ -242,6 +246,10 @@ def _credentials_schema(
         vol.Optional(CONF_SPIN, default=spin): _SPIN_SELECTOR,
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,
         vol.Optional(CONF_FORCE_ACCESS, default=force_access): _BOOL_SELECTOR,
+        # b12 — Volkswagen only: after the portal login, add a durable-MBB
+        # command channel (extra QR confirm) so this read-only portal entry
+        # also gets remote lock/climate/charge. Ignored for non-VW brands.
+        vol.Optional("enable_mbb_commands", default=enable_mbb_commands): _BOOL_SELECTOR,
     }
     return vol.Schema(schema)
 
@@ -290,6 +298,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # has no legacy Car-Net/MBB enrolment → newer ID/MEB car). Aborts the
         # flow with a clear "not eligible, use EU Data Act" message.
         self._dag_mbb_ineligible: bool = False
+        # b12 — MBB COMMAND-CHANNEL setup: the Portal (email/pw) login can tick
+        # "enable MBB commands" → after the portal validates, chain to the MBB
+        # QR; the finish then creates a PORTAL-primary entry (reads) WITH the
+        # MBB command channel (commands). These hold the portal entry across
+        # the QR detour.
+        self._dag_mbb_command: bool = False
+        self._pending_portal_data: dict[str, Any] = {}
+        self._pending_portal_title: str = ""
         # v2.14.0 — website-authproxy (opt-in beta) pending state between the
         # credentials step and the email-OTP step. The connector + its session
         # are held open across the two-step OTP exchange so the cookie jar
@@ -324,30 +340,22 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         exist in the cached strings. Embedding the labels makes the
         menu render correctly regardless of cache state.
         """
+        # b12 — TWO login paths only. QR/browser-login (passwordless, two-way
+        # native) for Audi/Škoda/SEAT/CUPRA; Portal (email/pw) for Volkswagen
+        # EU / Porsche, which can opt into a durable-MBB command channel right
+        # in that step (the old standalone "mbb_login" + "website_authproxy"
+        # menu entries are gone — MBB is now the Portal's command toggle, and
+        # vw.de is an options-only supplementary read channel).
         return self.async_show_menu(
             step_id="user",
             menu_options={
                 "browser_login": (
-                    "Browser-Login — Audi / Škoda / SEAT / CUPRA "
+                    "Browser-Login (QR) — Audi / Škoda / SEAT / CUPRA "
                     "(empfohlen, kein Passwort in HA)"
                 ),
                 "email_password": (
-                    "E-Mail + Passwort — Volkswagen EU / Porsche (Legacy)"
-                ),
-                # v2.14.0 — OPT-IN, BETA. Volkswagen-only read-only channel
-                # via the volkswagen.de website authproxy. Clearly labelled so
-                # users self-select; the email_password path is untouched.
-                "website_authproxy": (
-                    "Volkswagen.de website (beta) — nur Volkswagen, "
-                    "nur Lesen"
-                ),
-                # v2.15.0 — OPT-IN, ALPHA. Volkswagen EU durable login via the
-                # legacy MBB stack: a browser confirm (no password in HA) mints
-                # a durable, refreshable token that survives restarts AND
-                # supports two-way lock/unlock (needs the S-PIN in options).
-                "mbb_login": (
-                    "Volkswagen EU — Durable Login (MBB, two-way alpha) — "
-                    "Browser-Login, überlebt Neustart"
+                    "Portal (E-Mail + Passwort) — Volkswagen EU / Porsche "
+                    "(+ Toggle: MBB-Fahrzeug → Fernbefehle)"
                 ),
             },
         )
@@ -383,9 +391,38 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     return await self.async_step_mfa()
                 errors["base"] = _map_error(err_str)
             else:
+                portal_data = self._build_entry_data(
+                    brand, username, password, user_input,
+                )
+                # b12 — Volkswagen + "enable MBB commands": the portal validated
+                # above (reads); now chain to the MBB QR so the finish creates a
+                # portal-primary entry WITH a durable-MBB command channel on top.
+                # Non-VW or unticked → plain portal entry, exactly as before.
+                if (
+                    user_input.get("enable_mbb_commands")
+                    and brand == "volkswagen"
+                ):
+                    self._pending_portal_data = portal_data
+                    self._pending_portal_title = f"{BRANDS[brand]} — {username}"
+                    self._dag_mbb = True
+                    self._dag_mbb_command = True
+                    self._dag_brand = "volkswagen"
+                    self._dag_user_input = dict(user_input)
+                    self._dag_request_task = None
+                    self._dag_poll_task = None
+                    self._dag_user_code = ""
+                    self._dag_verification_uri = ""
+                    self._dag_device_code = ""
+                    self._dag_tokens = None
+                    self._dag_mbb_tokens = None
+                    self._dag_mbb_client_id = ""
+                    self._dag_mbb_ineligible = False
+                    self._dag_user_id = ""
+                    self._dag_error = ""
+                    return await self.async_step_browser_login_pending()
                 return self.async_create_entry(
                     title=f"{BRANDS[brand]} — {username}",
-                    data=self._build_entry_data(brand, username, password, user_input),
+                    data=portal_data,
                 )
 
         # v2.2.3 (#270 roberttco VW NA, 2026-05-21) — when validation
@@ -409,6 +446,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 ),
                 spin=suggested.get(CONF_SPIN, ""),
                 force_access=bool(suggested.get(CONF_FORCE_ACCESS, False)),
+                enable_mbb_commands=bool(
+                    suggested.get("enable_mbb_commands", False)
+                ),
             ),
             errors=errors,
         )
@@ -881,6 +921,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # MBB will never work for it. Abort with a clear pointer to the
                 # EU Data Act / email-password channels rather than looping.
                 if self._dag_mbb and self._dag_mbb_ineligible:
+                    # b12 — when MBB was an add-on command channel on a portal
+                    # entry, an MBB-ineligible (MEB/ID) car must NOT lose the
+                    # portal reads: create the portal entry without commands.
+                    if self._dag_mbb_command and self._pending_portal_data:
+                        return self.async_create_entry(
+                            title=self._pending_portal_title,
+                            data=self._pending_portal_data,
+                        )
                     return self.async_abort(reason="mbb_not_eligible")
                 # Poll/mint completed with error — reset state and route
                 # back to the right brand/MBB picker so user can retry.
@@ -1134,6 +1182,26 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         if self._dag_tokens is None:
             # Shouldn't happen if step routing is correct, but defensive.
             return self.async_abort(reason="dag_no_tokens")
+
+        # b12 — Portal-primary entry WITH an MBB command channel: the QR just
+        # minted the durable-MBB bearer; attach it to the pending portal entry
+        # (reads) as a command channel. The portal's unique_id was already set +
+        # de-duped in async_step_email_password, so don't touch it here.
+        if self._dag_mbb_command:
+            entry_data = dict(self._pending_portal_data)
+            if self._dag_mbb_tokens is not None:
+                entry_data[CONF_MBB_COMMAND_CHANNEL] = True
+                entry_data[CONF_MBB_COMMAND_TOKENS] = {
+                    "access_token": self._dag_mbb_tokens.access_token,
+                    "refresh_token": self._dag_mbb_tokens.refresh_token,
+                    "id_token": self._dag_tokens.id_token,
+                    "expires_at": self._dag_mbb_tokens.expires_at,
+                    "strategy": "mbb",
+                }
+                entry_data[CONF_MBB_COMMAND_CLIENT_ID] = self._dag_mbb_client_id
+            return self.async_create_entry(
+                title=self._pending_portal_title, data=entry_data,
+            )
 
         unique = f"{self._dag_brand}_{self._dag_user_id}"
         await self.async_set_unique_id(unique)

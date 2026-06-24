@@ -29,6 +29,7 @@ from .const import (
     CONF_ENABLE_PUSH_MQTT,
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
+    CONF_MBB_COMMAND_CHANNEL,
     CONF_PASSWORD,
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
@@ -1151,6 +1152,70 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     "VAG Connect: supplementary portal arming failed (%s)"
                     " — primary channel unaffected.", type(err).__name__,
                 )
+
+        # ── b12: MBB COMMAND channel (commands on a read-only primary) ──────
+        arm_cmd = getattr(client, "arm_mbb_command_channel", None)
+        if data.get(CONF_MBB_COMMAND_CHANNEL) and arm_cmd is not None:
+            from .cariad.models import TokenSet  # noqa: PLC0415
+            from .const import (  # noqa: PLC0415
+                CONF_MBB_COMMAND_CLIENT_ID,
+                CONF_MBB_COMMAND_TOKENS,
+                CONF_MBB_VINS,
+            )
+            tok = data.get(CONF_MBB_COMMAND_TOKENS) or {}
+            cmd_tokens = TokenSet(
+                access_token=str(tok.get("access_token", "")),
+                refresh_token=str(tok.get("refresh_token", "")),
+                id_token=str(tok.get("id_token", "")),
+                expires_at=float(tok.get("expires_at", 0.0) or 0.0),
+                strategy="mbb",
+            )
+            vins = data.get(CONF_MBB_VINS) or []
+            if isinstance(vins, str):
+                vins = [
+                    v.strip().upper()
+                    for v in vins.replace(",", " ").split() if v.strip()
+                ]
+            try:
+                armed = bool(await arm_cmd(
+                    cmd_tokens,
+                    data.get(CONF_MBB_COMMAND_CLIENT_ID, ""),
+                    list(vins),
+                    data.get(CONF_SPIN, ""),
+                ))
+                if armed:
+                    # persist the rotated MBB bearer (durable refresh survives
+                    # restarts) — separate slot from the primary's tokens.
+                    cmd = getattr(client, "_mbb_command", None)
+                    if cmd is not None:
+                        cmd.on_tokens_changed = self._persist_mbb_command_tokens
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VAG Connect: MBB command channel arming failed (%s)"
+                    " — reads unaffected.", type(err).__name__,
+                )
+
+    async def _persist_mbb_command_tokens(self, tokens: Any) -> None:
+        """b12 — write the MBB command channel's rotated bearer back to
+        entry.data[CONF_MBB_COMMAND_TOKENS] so the durable refresh survives a
+        restart. Separate from the primary's token storage. Fail-soft."""
+        from .const import CONF_MBB_COMMAND_TOKENS  # noqa: PLC0415
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={
+                    **self.entry.data,
+                    CONF_MBB_COMMAND_TOKENS: {
+                        "access_token": tokens.access_token,
+                        "refresh_token": tokens.refresh_token,
+                        "id_token": tokens.id_token,
+                        "expires_at": tokens.expires_at,
+                        "strategy": "mbb",
+                    },
+                },
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     async def _merge_supplementary(self, vin: str, primary: VehicleData) -> VehicleData:
         """v2.15.0b1 (C1) — union armed supplementary read-only channels onto
@@ -3594,7 +3659,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if strategy in (
             "data_act_portal", "device_grant_portal", "website_authproxy"
         ):
-            return True
+            # b12 — UNLESS an MBB command channel is armed on this read-only
+            # primary: then lock/climate/charge DO have a path (they route to
+            # the MBB connector), so command entities should exist. Fall through
+            # to the user toggle below instead of forcing read-only.
+            if not (
+                self.entry.data.get(CONF_MBB_COMMAND_CHANNEL)
+                and getattr(client, "_mbb_command", None) is not None
+            ):
+                return True
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}
         return (
