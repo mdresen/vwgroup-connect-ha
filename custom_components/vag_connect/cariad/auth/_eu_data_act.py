@@ -548,7 +548,14 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
         return None
 
     soc = _to_int(first("battery_state_report.soc", "soc", "stateOfChargeInPercent",
-                        "state_of_charge"))
+                        "state_of_charge",
+                        # b13 (#504) — legacy Car-Net charger dialect: the HV
+                        # battery level IS the traction SoC. Kept LAST so the
+                        # canonical sources win when a car reports both, and
+                        # only the charger-dialect cars (which carry nothing
+                        # else) fall back to it.
+                        "battery_level_HV.value",
+                        "battery_level_HV.battery_level_HV.value"))
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True
