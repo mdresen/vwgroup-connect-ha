@@ -1058,8 +1058,8 @@
       "title": "EU Data Act-portalsessionen har gått ut – autentisera på nytt"
     },
     "ola_headers_outdated": {
-      "description": "VW Groups backend för onlinetjänster (OLA) har nekat **{count}** förfrågningar i rad för {brand} med HTTP 403 Forbidden.\n\nDet här är **inte** ett problem med föråldrade headers eller en app-version, och det går inte att lösa genom att konfigurera om eller logga in på nytt. VW verkar ha begränsat åtkomsten till onlinetjänsterna för {brand} (och SEAT) på sin sida — den officiella appen använder en separat, fullt betrodd åtkomst som vi inte kan återskapa. En ändring av header eller app-version återställer den inte.\n\nDär det går faller integrationen tillbaka på det skrivskyddade EU Data Act-portalen för de data som fortfarande är tillgängliga. {brand}-data kommer tillbaka av sig själv när VW återställer åtkomsten. Du behöver inte göra något — varningen försvinner automatiskt när förfrågningar lyckas igen.",
-      "title": "{brand}-onlinetjänster blockerade av VW — {count} 403-fel i rad"
+      "description": "VW Groups backend för onlinetjänster (OLA) avvisade **{count}** förfrågningar i rad för {brand} med HTTP 403 Forbidden.\n\nDet här är en **server-sidig låsning från VW** — varken en uppdatering, headerändring eller ny inloggning åtgärdar det. VW kräver nu en Google-signerad enhetsattesterings-token (Firebase App Check / Play Integrity) plus en web-application-firewall-token på SEAT/CUPRA-backenden — den officiella appen skapar dem från ett härdat, Google-signerat bygge, vilket en öppen-källkodsklient inte kan återskapa. Fjärr**kommandon** för {brand} (och SEAT) kommer därför sannolikt inte tillbaka.\n\nFordons**data** kommer fortfarande via det skrivskyddade EU Data Act-portalen där det är tillgängligt — det är vägen framåt för dessa märken. Detta ligger helt hos VW; inget att åtgärda på din sida. (Spåras: #464.)",
+      "title": "{brand}-kommandon blockerade av VW (enhetsattestering) — {count} 403-fel i rad"
     },
     "supplementary_reauth": {
       "title": "Volkswagen.de-läskanalen behöver loggas in igen",

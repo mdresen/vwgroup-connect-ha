@@ -1058,8 +1058,8 @@
       "title": "Sesja portalu EU Data Act wygasła – zaloguj się ponownie"
     },
     "ola_headers_outdated": {
-      "description": "Backend usług online VW Group (OLA) odrzucił **{count}** żądań z rzędu dla {brand} z błędem HTTP 403 Forbidden.\n\nTo **nie** jest problem z nieaktualnymi nagłówkami ani wersją aplikacji i nie da się go naprawić przez ponowną konfigurację czy ponowne logowanie. VW najwyraźniej ograniczył dostęp do usług online dla {brand} (i SEAT) po swojej stronie — oficjalna aplikacja korzysta z osobnego, w pełni zaufanego dostępu, którego nie jesteśmy w stanie odtworzyć. Zmiana nagłówka ani wersji aplikacji tego nie przywróci.\n\nTam, gdzie to możliwe, integracja przełącza się na portal EU Data Act tylko do odczytu, aby pobrać wciąż dostępne dane. Dane {brand} wrócą same, gdy VW przywróci dostęp. Nie musisz nic robić — to ostrzeżenie zniknie automatycznie, gdy żądania znów zaczną się udawać.",
-      "title": "Usługi online {brand} zablokowane po stronie VW — {count} kolejnych błędów 403"
+      "description": "Backend usług online VW Group (OLA) odrzucił **{count}** żądań z rzędu dla {brand} z błędem HTTP 403 Forbidden.\n\nTo **blokada po stronie serwera VW** — nie naprawi tego aktualizacja, zmiana nagłówka ani ponowne logowanie. VW wymaga teraz podpisanego przez Google tokenu atestacji urządzenia (Firebase App Check / Play Integrity) oraz tokenu zapory aplikacyjnej na backendzie SEAT/CUPRA — oficjalna aplikacja generuje je z utwardzonej, podpisanej przez Google kompilacji, czego klient open-source nie odtworzy. Dlatego zdalne **polecenia** dla {brand} (i SEAT) prawdopodobnie nie wrócą.\n\n**Dane** pojazdu nadal napływają przez portal EU Data Act (tylko odczyt), gdy są dostępne — to droga naprzód dla tych marek. To w pełni po stronie VW; po Twojej stronie nic do zrobienia. (Śledzone: #464.)",
+      "title": "Polecenia {brand} zablokowane przez VW (atestacja urządzenia) — {count} kolejnych błędów 403"
     },
     "supplementary_reauth": {
       "title": "Kanał odczytu Volkswagen.de wymaga ponownego logowania",

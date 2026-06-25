@@ -63,6 +63,17 @@ BRAND_VW_EU = BrandConfig(
     android_package_name="de.volkswagen.weconnect",
 )
 
+# b13 (RE dismantle 2026-06) — known-good FALLBACK OAuth client_ids harvested
+# from the current brand APKs. Each app ships more dilab clients than we model;
+# if VW ever blocklists a primary client_id, a user can set one of these via the
+# ``CONF_CLIENT_ID_OVERRIDE`` option to recover. These are NOT active by default
+# (documentation only); all primary client_ids above are APK-verified-current.
+#   audi : 16dd7960-431d-4b88-b3a5-35724b2fce01@apps_vw-dilab_com
+#   vw_eu: 4edc53db-4b79-4e37-b614-19a95dea20dc@apps_vw-dilab_com
+#   skoda: 4fffed6b-815a-4b6f-af4a-b0ccccb4ff6d@apps_vw-dilab_com
+#   ola  : 3f16b970-38ab-49c6-a1bf-af38460fd388 / f1cd60b6-e40f-4bf2-822d-0201eabc09b5
+#   vw_na: 59992128-69a9-42c3-8621-7942041ba824_MYVW_ANDROID (US prod, primary)
+
 BRAND_AUDI = BrandConfig(
     name="audi",
     # client_id from upstream (arjenvrh/upstream, MIT) — confirmed working

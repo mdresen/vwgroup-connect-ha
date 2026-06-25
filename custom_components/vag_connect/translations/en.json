@@ -1060,8 +1060,8 @@
       "title": "EU Data Act portal session expired - reauthenticate"
     },
     "ola_headers_outdated": {
-      "description": "VW Group's online-services backend (OLA) has refused **{count}** requests in a row for {brand} with HTTP 403 Forbidden.\n\nThis is **not** an outdated-header or app-version problem, and it's not something you can fix by reconfiguring or re-logging in. VW appears to have restricted online-services access for {brand} (and SEAT) on their side — the official app uses a separate, fully-trusted access path we can't reproduce, so a header bump or app-version override won't bring it back.\n\nWhere it can, the integration falls back to the read-only EU Data Act portal for whatever data is still available. {brand} data should return on its own once VW restores access. Nothing to do on your end — this warning auto-clears when requests start succeeding again.",
-      "title": "{brand} online services blocked on VW's side — {count} consecutive 403 errors"
+      "description": "VW Group's online-services backend (OLA) refused **{count}** requests in a row for {brand} with HTTP 403 Forbidden.\n\nThis is a **server-side lockdown by VW**, not something an update, header change, or re-login can fix. VW now requires a Google-signed device-attestation token (Firebase App Check / Play Integrity) plus a web-application-firewall token on the SEAT/CUPRA backend — the official app mints these from a hardened, Google-signed build, which an open-source client cannot reproduce. So remote **commands** for {brand} (and SEAT) are unlikely to return.\n\nVehicle **data** still flows through the read-only EU Data Act portal where available — that's the path forward for these brands. This is entirely VW-side; nothing to fix on your end. (Tracked: #464.)",
+      "title": "{brand} commands blocked by VW (device attestation) — {count} consecutive 403 errors"
     },
     "supplementary_reauth": {
       "title": "Volkswagen.de read channel needs re-login",

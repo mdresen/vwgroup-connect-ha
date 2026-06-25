@@ -1058,8 +1058,8 @@
       "title": "EU Data Act-portaalsessie verlopen – opnieuw aanmelden"
     },
     "ola_headers_outdated": {
-      "description": "De online-services-backend van VW Group (OLA) heeft **{count}** verzoeken voor {brand} achter elkaar geweigerd met HTTP 403 Forbidden.\n\nDit is **geen** probleem met verouderde headers of een app-versie, en het is niet op te lossen door opnieuw in te stellen of opnieuw in te loggen. VW lijkt de toegang tot de onlinediensten voor {brand} (en SEAT) aan hun kant te hebben ingetrokken — de officiële app gebruikt een aparte, volledig vertrouwde toegang die wij niet kunnen nabootsen. Een header- of app-versie-override brengt het niet terug.\n\nWaar mogelijk valt de integratie terug op het alleen-lezen EU Data Act-portaal voor de gegevens die nog beschikbaar zijn. De {brand}-gegevens komen vanzelf terug zodra VW de toegang herstelt. Je hoeft niets te doen — deze waarschuwing verdwijnt automatisch zodra verzoeken weer slagen.",
-      "title": "{brand}-onlinediensten geblokkeerd door VW — {count} opeenvolgende 403-fouten"
+      "description": "De online-services-backend van VW Group (OLA) weigerde **{count}** verzoeken op rij voor {brand} met HTTP 403 Forbidden.\n\nDit is een **server-side blokkade door VW** — geen update, headerwijziging of opnieuw inloggen lost het op. VW vereist nu een door Google ondertekend apparaat-attestatietoken (Firebase App Check / Play Integrity) plus een web-application-firewall-token op de SEAT/CUPRA-backend — de officiële app maakt die vanuit een geharde, door Google ondertekende build, wat een open-source-client niet kan nabootsen. **Opdrachten** op afstand voor {brand} (en SEAT) komen daarom waarschijnlijk niet terug.\n\nVoertuig**gegevens** komen waar beschikbaar nog steeds binnen via het alleen-lezen EU Data Act-portaal — dat is de weg vooruit voor deze merken. Dit ligt volledig bij VW; aan jouw kant niets te doen. (Gevolgd: #464.)",
+      "title": "{brand}-opdrachten geblokkeerd door VW (apparaat-attestatie) — {count} opeenvolgende 403-fouten"
     },
     "supplementary_reauth": {
       "title": "Volkswagen.de-leeskanaal moet opnieuw inloggen",
