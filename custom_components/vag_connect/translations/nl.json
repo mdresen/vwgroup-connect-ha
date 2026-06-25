@@ -21,33 +21,33 @@
           "force_enable_access": "Voor oudere voertuigen die de capabiliteitscheck niet doorstaan."
         },
         "menu_options": {
-          "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+          "browser_login": "Browser-Login (aanbevolen)",
+          "email_password": "E-mailadres + wachtwoord (oud)",
+          "website_authproxy": "Volkswagen.de website (beta — alleen lezen)"
         }
       },
       "website_authproxy": {
-        "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "title": "Volkswagen.de website (beta, alleen lezen)",
+        "description": "**Experimenteel, opt-in.** Lees je Volkswagen uit via de volkswagen.de website login in plaats van de. Alleen voor Volkswagen, alleen lezen (geen bediening op afstand). Schrijf in met je Volkswagen ID E-mailadres en wachtwoord. Als je account e-mail verificatie gebruikt, zal je voor een code worden gevraagd.",
         "data": {
-          "username": "Email Address",
-          "password": "Password",
-          "scan_interval": "Update Interval"
+          "username": "E-mailadres",
+          "password": "Wachtwoord",
+          "scan_interval": "Verversingsfrequentie"
         },
         "data_description": {
-          "username": "The email of your Volkswagen ID / myVolkswagen account.",
-          "password": "Your Volkswagen ID password.",
-          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+          "username": "Het E-mailadres van je Volkswagen ID / myVolkswagen account.",
+          "password": "Je Volkswagen ID wachtwoord.",
+          "scan_interval": "Hoe vaak de data wordt ververst (minuten). Minimum: 5."
         }
       },
       "website_authproxy_otp": {
-        "title": "Email verification code",
-        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "title": "E-mailadres verificatie code",
+        "description": "Een verificatie code voor **{username}** is naar je e-mailadres verstuurd.\n\nVoor de code in om de inschrijving van het Volkswagen.de website (beta) kanaal te voltooien.",
         "data": {
-          "mfa_code": "Verification Code"
+          "mfa_code": "Verificatie Code"
         },
         "data_description": {
-          "mfa_code": "Code from your email inbox — valid for a few minutes."
+          "mfa_code": "Code van je e-mail postbus — geldig voor een paar minuten."
         }
       },
       "reauth_confirm": {
@@ -320,13 +320,13 @@
         "name": "Laatste Sessie — Duur"
       },
       "last_charging_session_start": {
-        "name": "Last Charging Session Start"
+        "name": "Laatste laadsessie Start"
       },
       "last_charging_session_current_type": {
-        "name": "Last Charging Session Current Type"
+        "name": "Laatste laadsessie stroomtype"
       },
       "last_charging_power_curve_points": {
-        "name": "Last Charging Power Curve Points"
+        "name": "Laatste laadsessie Stroomcurve punten"
       },
       "active_charging_profile_name": {
         "name": "Actief Laadprofiel"
@@ -371,22 +371,22 @@
         "name": "Foutmelder"
       },
       "requests_remaining_today": {
-        "name": "API Requests Remaining"
+        "name": "Resterende API-verzoeken"
       },
       "license_plate": {
-        "name": "License Plate"
+        "name": "Kenteken plaat"
       },
       "equipment_count": {
-        "name": "Equipment Count"
+        "name": "Aantal apparaten"
       },
       "secondary_engine_range_km": {
-        "name": "Secondary Engine Range"
+        "name": "Tweede motor bereik"
       },
       "secondary_engine_type": {
-        "name": "Secondary Engine Type"
+        "name": "Tweede motor Type"
       },
       "secondary_engine_fuel_level_pct": {
-        "name": "Secondary Engine Fuel Level"
+        "name": "Tweede motor brandstofniveau"
       },
       "subscription_expiry_at": {
         "name": "Abonnement verloopt"
@@ -419,7 +419,7 @@
         "name": "Klimaattimers ingeschakeld"
       },
       "primary_engine_type": {
-        "name": "Primary Engine Type"
+        "name": "Primare motor type"
       },
       "steering_wheel_position": {
         "name": "Stuurpositie"
@@ -494,19 +494,19 @@
         "name": "Preferred Workshop Phone"
       },
       "adblue_level_pct": {
-        "name": "AdBlue Level"
+        "name": "AdBlue niveau"
       },
       "cng_level_pct": {
-        "name": "CNG Tank Level"
+        "name": "CNG Tank niveau"
       },
       "cng_range_km": {
-        "name": "CNG Range"
+        "name": "CNG bereik"
       },
       "primary_engine_range_km": {
-        "name": "Primary Engine Range"
+        "name": "Primare motor bereik"
       },
       "charging_preferred_mode": {
-        "name": "Preferred Charging Mode"
+        "name": "Voorkeurslaadmodus"
       },
       "pending_action_id": {
         "name": "Pending action ID"
@@ -563,13 +563,13 @@
         "name": "Auto Release Connector State"
       },
       "active_ventilation_state": {
-        "name": "Active Ventilation"
+        "name": "Actieve Ventilatie"
       },
       "active_ventilation_remaining_time_min": {
-        "name": "Active Ventilation Remaining"
+        "name": "Actieve Ventilatie resterend"
       },
       "connection_state_battery_power_level": {
-        "name": "12V Battery Power Level"
+        "name": "12V Battery niveau"
       },
       "last_trip_total_fuel_consumption_l": {
         "name": "Last Trip Total Fuel"
@@ -772,16 +772,16 @@
         "name": "Oliepeil"
       },
       "seat_heating": {
-        "name": "Seat Heating"
+        "name": "Stoel verwarming"
       },
       "parking_light": {
-        "name": "Parking Light"
+        "name": "Parkeer licht"
       },
       "external_power": {
-        "name": "External Power Available"
+        "name": "Externe voeding beschikbaar"
       },
       "battery_care": {
-        "name": "Battery Care Mode"
+        "name": "Batterijonderhoudsmodus"
       },
       "energy_flow": {
         "name": "Energy Flow Active"
@@ -802,10 +802,10 @@
         "name": "Roof Cover"
       },
       "permission_is_owner": {
-        "name": "Account is primary owner"
+        "name": "Account is primare gebruiker"
       },
       "permission_can_command": {
-        "name": "Account can send commands"
+        "name": "Account kan commandos versturen"
       },
       "external_power_available": {
         "name": "Externe voeding beschikbaar"
@@ -1119,18 +1119,18 @@
       "options": {
         "lock": "Lock",
         "unlock": "Unlock",
-        "start_climatisation": "Start climatisation",
-        "stop_climatisation": "Stop climatisation",
-        "start_charging": "Start charging",
-        "stop_charging": "Stop charging",
-        "flash_lights": "Flash lights",
-        "start_window_heating": "Start window heating",
-        "stop_window_heating": "Stop window heating",
-        "wake_vehicle": "Wake vehicle",
-        "start_aux_heating": "Start auxiliary heating",
-        "stop_aux_heating": "Stop auxiliary heating",
-        "start_ventilation": "Start ventilation",
-        "stop_ventilation": "Stop ventilation"
+        "start_climatisation": "Start klimatisering",
+        "stop_climatisation": "Stop klimatisering",
+        "start_charging": "Start laadsessie",
+        "stop_charging": "Stop laadsessie",
+        "flash_lights": "Knipper met de lichten",
+        "start_window_heating": "Start voorruit verwarming",
+        "stop_window_heating": "Stop voorruit verwarming",
+        "wake_vehicle": "Wek voortuig",
+        "start_aux_heating": "Start Standkachel",
+        "stop_aux_heating": "Stop Standkachel",
+        "start_ventilation": "Start ventilatie",
+        "stop_ventilation": "Stop ventilatie"
       }
     }
   }
