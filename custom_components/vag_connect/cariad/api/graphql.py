@@ -196,8 +196,8 @@ class VehicleImageFetcher:
                 "Content-Type":  "application/json",
                 "Accept":        "application/json",
                 "X-App-ID":      _BRAND_APP_IDS.get(brand.lower(), "de.audi.myaudi"),
-                "X-App-Version": "4.18.0",
-                "User-Agent":    "myAudi/4.18.0 Android/34",
+                "X-App-Version": "5.5.1",  # b13 (RE) — live myAudi build
+                "User-Agent":    "myAudi/5.5.1 Android/34",
             }
 
             async with self._session.post(

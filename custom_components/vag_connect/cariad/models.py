@@ -68,7 +68,8 @@ BRAND_AUDI = BrandConfig(
     # client_id from upstream (arjenvrh/upstream, MIT) — confirmed working
     client_id="09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
     redirect_uri="myaudi:///",
-    user_agent="Android/4.31.0 (Build 800341641.root project 'myaudi_android'.ext.buildTime) Android/13",
+    # b13 (RE myAudi dismantle) — live build 5.5.1 / versionCode 800344232.
+    user_agent="Android/5.5.1 (Build 800344232.root project 'myaudi_android'.ext.buildTime) Android/13",
     api_base="https://emea.bff.cariad.digital",
     # scope exactly matching upstream — no extra "cars"/"dealers" scopes
     scope=(

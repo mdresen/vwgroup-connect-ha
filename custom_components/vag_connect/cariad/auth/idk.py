@@ -59,7 +59,7 @@ _AUTHORIZE_URL = f"{_IDK_BASE}/oidc/v1/authorize"
 # layer. Requests now return HTTP 403 from
 # ``Microsoft-Azure-Application-Gateway/v2`` regardless of headers,
 # query shape, or User-Agent. The replacement endpoint adopted by the
-# official Volkswagen 3.61.0 + myAudi 4.31.0 APKs (and ported by
+# official Volkswagen 3.63.2 + myAudi 5.5.1 APKs (and ported by
 # evcc PR #30277 / volkswagencarnet PR #331 / ioBroker.vw-connect):
 _CARIAD_TOKEN_URL = "https://emea.bff.cariad.digital/auth/v1/idk/oidc/token"
 

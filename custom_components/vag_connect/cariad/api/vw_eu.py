@@ -1067,7 +1067,7 @@ class VWEUClient(CariadBaseClient):
         fixtures). Audi uses ``myAudi``; everything else the VW We Connect id.
         """
         if self._brand.name == "audi":
-            return "myAudi", "4.24.0"
+            return "myAudi", "5.5.1"  # b13 (RE) — live myAudi build (was 4.24.0)
         # b13 (#503 dismantle / H5) — bumped to the live We Connect version.
         # Verified against the dismantled com.volkswagen.weconnect APK
         # (versionName 3.63.2, androguard 2026-06). A fidelity check on the
