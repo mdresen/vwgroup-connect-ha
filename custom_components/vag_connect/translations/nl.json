@@ -494,13 +494,13 @@
         "name": "Preferred Workshop Phone"
       },
       "adblue_level_pct": {
-        "name": "AdBlue Level"
+        "name": "AdBlue niveau"
       },
       "cng_level_pct": {
-        "name": "CNG Tank Level"
+        "name": "CNG Tank niveau"
       },
       "cng_range_km": {
-        "name": "CNG Range"
+        "name": "CNG bereik"
       },
       "primary_engine_range_km": {
         "name": "Primary Engine Range"
@@ -548,52 +548,52 @@
         "name": "Actual charge rate"
       },
       "hv_battery_min_temperature_c": {
-        "name": "HV Battery Temperature (Min)"
+        "name": "Temperatuur HV-accu (min.)"
       },
       "hv_battery_max_temperature_c": {
-        "name": "HV Battery Temperature (Max)"
+        "name": "Temperatuur HV-accu (max.)"
       },
       "charge_max_ac_setting": {
-        "name": "Max AC Current (Setting)"
+        "name": "Maximale wisselstroom (instelling)"
       },
       "charge_max_ac_ampere": {
-        "name": "Max AC Current (Deliverable)"
+        "name": "Maximale wisselstroom (leverbaar)"
       },
       "auto_release_ac_connector_state": {
-        "name": "Auto Release Connector State"
+        "name": "Status van connector voor automatische ontgrendeling"
       },
       "active_ventilation_state": {
-        "name": "Active Ventilation"
+        "name": "Actieve ventilatie"
       },
       "active_ventilation_remaining_time_min": {
-        "name": "Active Ventilation Remaining"
+        "name": "Resterende actieve ventilatie"
       },
       "connection_state_battery_power_level": {
-        "name": "12V Battery Power Level"
+        "name": "Laadniveau van de 12V-accu"
       },
       "last_trip_total_fuel_consumption_l": {
-        "name": "Last Trip Total Fuel"
+        "name": "Totale brandstof laatste rit"
       },
       "last_trip_total_electric_consumption_kwh": {
-        "name": "Last Trip Total Energy"
+        "name": "Totale energie van de laatste rit"
       },
       "notifications_count": {
-        "name": "Notifications count"
+        "name": "Aantal meldingen"
       },
       "last_notification_subject": {
-        "name": "Last notification subject"
+        "name": "Onderwerp van de laatste melding"
       },
       "last_notification_severity": {
-        "name": "Last notification severity"
+        "name": "Ernst van de laatste melding"
       },
       "engine_oil_temperature_c": {
-        "name": "Engine oil temperature"
+        "name": "Motorolietemperatuur"
       },
       "engine_coolant_temperature_c": {
-        "name": "Engine coolant temperature"
+        "name": "Koelvloeistoftemperatuur van de motor"
       },
       "last_trip_reset_at": {
-        "name": "Last Trip Reset"
+        "name": "Reset laatste trip"
       },
       "battery_temp_c": {
         "name": "Batterijtemperatuur"
@@ -721,16 +721,16 @@
         "name": "Batterij-Zorg Actief"
       },
       "auto_unlock_when_charged": {
-        "name": "Auto Unlock When Charged"
+        "name": "Automatisch ontgrendelen na opladen"
       },
       "climate_at_unlock": {
-        "name": "Climate at Unlock"
+        "name": "Klimatisering bij openen"
       },
       "window_heating_enabled": {
-        "name": "Window Heating Enabled"
+        "name": "Ruitverwarming ingeschakeld"
       },
       "air_conditioning_without_external_power": {
-        "name": "AC Without External Power"
+        "name": "Wisselstroom zonder externe voeding"
       },
       "subscription_active": {
         "name": "Abonnement actief"
@@ -772,40 +772,40 @@
         "name": "Oliepeil"
       },
       "seat_heating": {
-        "name": "Seat Heating"
+        "name": "Stoelverwarming"
       },
       "parking_light": {
-        "name": "Parking Light"
+        "name": "Parkeerlicht"
       },
       "external_power": {
-        "name": "External Power Available"
+        "name": "Externe voeding beschikbaar"
       },
       "battery_care": {
-        "name": "Battery Care Mode"
+        "name": "Batterijonderhoudsmodus"
       },
       "energy_flow": {
-        "name": "Energy Flow Active"
+        "name": "Energiestroom actief"
       },
       "area_alarm": {
         "name": "Geofence Alarm"
       },
       "auto_release_ac_connector": {
-        "name": "Auto Release AC Connector"
+        "name": "AC-connector automatisch ontgrendelen"
       },
       "optimised_battery_use": {
-        "name": "Optimised Battery Use"
+        "name": "Geoptimaliseerd batterijgebruik"
       },
       "sunroof_rear_closed": {
-        "name": "Rear Sunroof"
+        "name": "Achter zonnescherm"
       },
       "roof_cover_closed": {
-        "name": "Roof Cover"
+        "name": "Dak rolscherm"
       },
       "permission_is_owner": {
-        "name": "Account is primary owner"
+        "name": "Account is primaire eigenaar"
       },
       "permission_can_command": {
-        "name": "Account can send commands"
+        "name": "Account kan opdrachten verzenden"
       },
       "external_power_available": {
         "name": "Externe voeding beschikbaar"
@@ -866,10 +866,10 @@
         "name": "Max. laadstroom"
       },
       "auxheat_duration": {
-        "name": "Auxiliary Heating Duration"
+        "name": "Duur van de standkachel verwarming"
       },
       "auxheat_target_temp": {
-        "name": "Auxiliary Heating Target Temperature"
+        "name": "Doeltemperatuur standkachel"
       }
     },
     "button": {
@@ -1066,16 +1066,16 @@
       }
     },
     "execute_vehicle_action": {
-      "name": "Execute Vehicle Action",
-      "description": "Unified service that dispatches a vehicle action selected from a dropdown. Equivalent to calling the per-action service of the same name but easier to find in the Home Assistant Lovelace service picker. All existing per-action services (vag_connect.lock, vag_connect.start_climatisation, etc) keep working unchanged.",
+      "name": "Voertuigactie uitvoeren",
+      "description": "Een gecombineerde service die een voertuigactie uitvoert die via een vervolgkeuzemenu is geselecteerd. Dit komt overeen met het aanroepen van de specifieke service voor die actie, maar is eenvoudiger te vinden in de servicekiezer van Home Assistant Lovelace. Alle bestaande services per actie (zoals vag_connect.lock, vag_connect.start_climatisation, enz.) blijven ongewijzigd werken.",
       "fields": {
         "device_id": {
           "name": "Vehicle",
-          "description": "The vehicle device to act on."
+          "description": "Het voertuigapparaat waarop moet worden ingewerkt."
         },
         "action": {
           "name": "Action",
-          "description": "Which action to dispatch."
+          "description": "Welke actie moet worden uitgevoerd."
         }
       }
     },
@@ -1117,20 +1117,20 @@
   "selector": {
     "execute_vehicle_action_options": {
       "options": {
-        "lock": "Lock",
-        "unlock": "Unlock",
-        "start_climatisation": "Start climatisation",
-        "stop_climatisation": "Stop climatisation",
-        "start_charging": "Start charging",
-        "stop_charging": "Stop charging",
-        "flash_lights": "Flash lights",
-        "start_window_heating": "Start window heating",
-        "stop_window_heating": "Stop window heating",
-        "wake_vehicle": "Wake vehicle",
-        "start_aux_heating": "Start auxiliary heating",
-        "stop_aux_heating": "Stop auxiliary heating",
-        "start_ventilation": "Start ventilation",
-        "stop_ventilation": "Stop ventilation"
+        "lock": "Afsluiten",
+        "unlock": "Openen",
+        "start_climatisation": "Start klimatisatie",
+        "stop_climatisation": "Stop klimatisatie",
+        "start_charging": "Start laden",
+        "stop_charging": "Stop laden",
+        "flash_lights": "Knipper met de lichten",
+        "start_window_heating": "Start voorruitverwarming",
+        "stop_window_heating": "Stop voorruitverwarming",
+        "wake_vehicle": "Maak voertuig wakker",
+        "start_aux_heating": "Start standkachel",
+        "stop_aux_heating": "Stop standkachel",
+        "start_ventilation": "Start ventilatie",
+        "stop_ventilation": "Stop ventilatie"
       }
     }
   }
