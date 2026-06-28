@@ -21,17 +21,17 @@
           "force_enable_access": "Voor oudere voertuigen die de capabiliteitscheck niet doorstaan."
         },
         "menu_options": {
-          "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)",
+          "browser_login": "Browser-Login (aanbevolen)",
+          "email_password": "Email + Password (verouderde methode)",
           "website_authproxy": "Volkswagen.de website (beta — read-only)"
         }
       },
       "website_authproxy": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimenteel, opt-in.** Leest gegevens van uw Volkswagen uit via de inlogpagina van volkswagen.de, in plaats van via de backend van de app. Alleen voor Volkswagen; alleen-lezen (geen commando's op afstand). Log in met het e-mailadres en wachtwoord van uw Volkswagen ID. Als uw account gebruikmaakt van e-mailverificatie, wordt u vervolgens om de code gevraagd.",
         "data": {
-          "username": "Email Address",
-          "password": "Password",
+          "username": "E-mailadres",
+          "password": "Wachtwoord",
           "scan_interval": "Update Interval"
         },
         "data_description": {
@@ -41,13 +41,13 @@
         }
       },
       "website_authproxy_otp": {
-        "title": "Email verification code",
-        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "title": "mailverificatiecode",
+        "description": "Er is een verificatiecode verzonden naar het e-mailadres van **{username}**.\n\nVoer de code in om het inloggen bij het kanaal Volkswagen.de (bèta) te voltooien.",
         "data": {
-          "mfa_code": "Verification Code"
+          "mfa_code": "Verificatiecode"
         },
         "data_description": {
-          "mfa_code": "Code from your email inbox — valid for a few minutes."
+          "mfa_code": "Code uit je e-mailinbox — enkele minuten geldig."
         }
       },
       "reauth_confirm": {
@@ -81,15 +81,15 @@
         }
       },
       "email_password": {
-        "title": "Sign in with email + password (legacy)",
-        "description": "Connect your vehicle to Home Assistant.\n\nChoose your brand and enter the credentials from your manufacturer's app.",
+        "title": "Inloggen met e-mail + wachtwoord (verouderde methode)",
+        "description": "Verbind je voertuig met Home Assistant.\n\nKies je merk en voer de inloggegevens van de app van de fabrikant in.",
         "data": {
-          "brand": "Vehicle Brand",
-          "username": "Email Address",
-          "password": "Password",
+          "brand": "Voertuigmerk",
+          "username": "E-mailadres",
+          "password": "Wachtwoord",
           "spin": "S-PIN",
           "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status"
+          "force_enable_access": "Deurstatus forceren"
         },
         "data_description": {
           "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
@@ -107,7 +107,7 @@
           "brand": "Vehicle Brand",
           "spin": "S-PIN",
           "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status"
+          "force_enable_access": "Deurstatus forceren"
         },
         "data_description": {
           "brand": "Alleen merken met browser-login-ondersteuning worden getoond. Gebruik 'E-mail + wachtwoord' voor Volkswagen EU en Porsche.",
